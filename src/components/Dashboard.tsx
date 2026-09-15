@@ -6,6 +6,7 @@ import { DashboardData } from '@/types/spc';
 import { Header } from './Header';
 import { StatusBadge } from './StatusBadge';
 import { SubgroupForm } from './SubgroupForm';
+import { SubgroupCalculationCard } from './SubgroupCalculationCard';
 import { SummaryPanel } from './SummaryPanel';
 import { ControlChart, ControlChartPoint } from './ControlChart';
 import { OutOfControlList } from './OutOfControlList';
@@ -125,12 +126,15 @@ export function Dashboard() {
         {loading && !data && <p className="text-sm text-muted">Loading…</p>}
 
         {tab === 'home' && (
-          <SubgroupForm
-            onCreated={() => {
-              load();
-              setTab('trends');
-            }}
-          />
+          <>
+            <SubgroupForm
+              onCreated={() => {
+                load();
+                setTab('trends');
+              }}
+            />
+            {data && <SubgroupCalculationCard data={data} />}
+          </>
         )}
 
         {tab === 'trends' && data && data.subgroups.length === 0 && !error && (
