@@ -15,8 +15,11 @@ function formatDate(iso: string): string {
 export function SubgroupCalculationCard({ data }: { data: DashboardData }) {
   if (data.subgroups.length === 0) return null;
 
+  // Sort by createdAt (actual submission time), not productionDate — multiple
+  // subgroups can share the same production date, and productionDate alone
+  // can't tell which one was entered most recently.
   const latest = [...data.subgroups].sort(
-    (a, b) => new Date(b.productionDate).getTime() - new Date(a.productionDate).getTime(),
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   )[0];
 
   const limits = data.summary.limitsBySubgroup.find((l) => l.subgroupId === latest.id);
