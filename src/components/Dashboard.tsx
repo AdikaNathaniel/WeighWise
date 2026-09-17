@@ -6,12 +6,15 @@ import { DashboardData } from '@/types/spc';
 import { Header } from './Header';
 import { StatusBadge } from './StatusBadge';
 import { SubgroupForm } from './SubgroupForm';
+import { ExcelUploadForm } from './ExcelUploadForm';
 import { SubgroupCalculationCard } from './SubgroupCalculationCard';
 import { SummaryPanel } from './SummaryPanel';
 import { ControlChart, ControlChartPoint } from './ControlChart';
 import { OutOfControlList } from './OutOfControlList';
+import { SubgroupList } from './SubgroupList';
+import { SubgroupEditor } from './SubgroupEditor';
 
-type Tab = 'home' | 'trends';
+type Tab = 'home' | 'trends' | 'records';
 
 // SPC control limits are only statistically meaningful once a baseline of
 // subgroups has been collected — charts stay hidden until then.
@@ -76,6 +79,7 @@ function TabButton({
 
 export function Dashboard() {
   const [tab, setTab] = useState<Tab>('home');
+  const [entryMode, setEntryMode] = useState<'manual' | 'upload'>('manual');
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -114,6 +118,9 @@ export function Dashboard() {
             <TabButton active={tab === 'trends'} onClick={() => setTab('trends')}>
               Trends &amp; Charts
             </TabButton>
+            <TabButton active={tab === 'records'} onClick={() => setTab('records')}>
+              Records
+            </TabButton>
           </div>
           {data && <StatusBadge isStable={data.status.isStable} />}
         </div>
@@ -131,12 +138,31 @@ export function Dashboard() {
 
         {tab === 'home' && (
           <>
-            <SubgroupForm
-              onCreated={() => {
-                load();
-                setTab('trends');
-              }}
-            />
+            <div className="flex gap-2">
+              <TabButton active={entryMode === 'manual'} onClick={() => setEntryMode('manual')}>
+                Manual entry
+              </TabButton>
+              <TabButton active={entryMode === 'upload'} onClick={() => setEntryMode('upload')}>
+                Upload spreadsheet
+              </TabButton>
+            </div>
+
+            {entryMode === 'manual' ? (
+              <SubgroupForm
+                onCreated={() => {
+                  load();
+                  setTab('trends');
+                }}
+              />
+            ) : (
+              <ExcelUploadForm
+                onImported={() => {
+                  load();
+                  setTab('trends');
+                }}
+              />
+            )}
+
             {data && <SubgroupCalculationCard data={data} />}
           </>
         )}
@@ -196,6 +222,13 @@ export function Dashboard() {
               <h3 className="text-sm font-semibold mb-3">Out-of-control points</h3>
               <OutOfControlList points={data.status.outOfControlPoints} />
             </div>
+          </>
+        )}
+
+        {tab === 'records' && data && (
+          <>
+            <SubgroupEditor subgroups={data.subgroups} onUpdated={load} />
+            <SubgroupList subgroups={data.subgroups} onDeleted={load} />
           </>
         )}
       </main>

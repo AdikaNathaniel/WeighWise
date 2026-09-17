@@ -6,6 +6,7 @@ import {
   SPC_ENGINE_PATTERNS,
   ALERTING_PATTERNS,
   CreateSubgroupDto,
+  UpdateSubgroupDto,
   Subgroup,
   SpcSummary,
   ControlStatus,
@@ -26,6 +27,12 @@ export class GatewayService {
 
   listSubgroups(): Promise<Subgroup[]> {
     return firstValueFrom(this.ingestionClient.send(INGESTION_PATTERNS.LIST_SUBGROUPS, {}));
+  }
+
+  updateSubgroup(id: string, dto: UpdateSubgroupDto): Promise<Subgroup> {
+    return firstValueFrom(
+      this.ingestionClient.send(INGESTION_PATTERNS.UPDATE_SUBGROUP, { id, dto }),
+    );
   }
 
   deleteSubgroup(id: string): Promise<{ id: string }> {

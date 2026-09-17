@@ -1,6 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { INGESTION_PATTERNS, CreateSubgroupDto } from '@app/common';
+import { INGESTION_PATTERNS, CreateSubgroupDto, UpdateSubgroupDto } from '@app/common';
 import { IngestionService } from './ingestion.service.js';
 
 @Controller()
@@ -15,6 +15,11 @@ export class IngestionController {
   @MessagePattern(INGESTION_PATTERNS.LIST_SUBGROUPS)
   listSubgroups() {
     return this.ingestionService.listSubgroups();
+  }
+
+  @MessagePattern(INGESTION_PATTERNS.UPDATE_SUBGROUP)
+  updateSubgroup(@Payload() payload: { id: string; dto: UpdateSubgroupDto }) {
+    return this.ingestionService.updateSubgroup(payload.id, payload.dto);
   }
 
   @MessagePattern(INGESTION_PATTERNS.DELETE_SUBGROUP)

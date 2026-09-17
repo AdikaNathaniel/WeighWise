@@ -1,5 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
-import { CreateSubgroupDto } from '@app/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { CreateSubgroupDto, UpdateSubgroupDto } from '@app/common';
 import { GatewayService } from './gateway.service.js';
 
 @Controller()
@@ -14,6 +14,11 @@ export class GatewayController {
   @Get('subgroups')
   listSubgroups() {
     return this.gatewayService.listSubgroups();
+  }
+
+  @Patch('subgroups/:id')
+  updateSubgroup(@Param('id') id: string, @Body() dto: UpdateSubgroupDto) {
+    return this.gatewayService.updateSubgroup(id, dto);
   }
 
   @Delete('subgroups/:id')

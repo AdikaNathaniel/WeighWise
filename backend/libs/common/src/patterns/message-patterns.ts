@@ -1,6 +1,7 @@
 export const INGESTION_PATTERNS = {
   CREATE_SUBGROUP: 'ingestion.create-subgroup',
   LIST_SUBGROUPS: 'ingestion.list-subgroups',
+  UPDATE_SUBGROUP: 'ingestion.update-subgroup',
   DELETE_SUBGROUP: 'ingestion.delete-subgroup',
 } as const;
 

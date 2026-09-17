@@ -57,3 +57,9 @@ export interface CreateSubgroupInput {
   sampleSize: number;
   weights: number[];
 }
+
+export interface UpdateSubgroupInput {
+  productionDate: string;
+  sampleSize: number;
+  weights: number[];
+}
