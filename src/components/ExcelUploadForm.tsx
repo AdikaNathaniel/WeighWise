@@ -61,9 +61,11 @@ export function ExcelUploadForm({ onImported }: { onImported: () => void }) {
     <div className="rounded-lg border border-border bg-surface p-5 space-y-4 shadow-sm">
       <h3 className="text-sm font-semibold text-foreground">Upload daily production records</h3>
       <p className="text-sm text-muted">
-        Upload a .xlsx, .xls, or .csv file with two columns: <strong>Production date</strong> and{' '}
-        <strong>Weight (g)</strong> — one row per package. Rows sharing a date are grouped into one
-        subgroup (2–10 packages per day).
+        Upload a .xlsx, .xls, or .csv file. Two layouts are supported:{' '}
+        <strong>Production date</strong> + <strong>Weight (g)</strong> with one row per package
+        (rows sharing a date are grouped into one subgroup), or <strong>Production date</strong> +{' '}
+        <strong>Sample 1 (g)</strong>, <strong>Sample 2 (g)</strong>, etc. with one row per
+        subgroup — the SPC template layout. Either way, subgroups need 2–10 packages.
       </p>
 
       <input
