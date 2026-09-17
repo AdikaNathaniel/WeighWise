@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { fetchDashboard } from '@/lib/api';
-import { DashboardData } from '@/types/spc';
+import { fetchDashboard, fetchSubgroupsPage } from '@/lib/api';
+import { DashboardData, PaginatedSubgroups } from '@/types/spc';
 import { Header } from './Header';
 import { StatusBadge } from './StatusBadge';
 import { SubgroupForm } from './SubgroupForm';
@@ -13,12 +13,18 @@ import { ControlChart, ControlChartPoint } from './ControlChart';
 import { OutOfControlList } from './OutOfControlList';
 import { SubgroupList } from './SubgroupList';
 import { SubgroupEditor } from './SubgroupEditor';
+import { Pagination } from './Pagination';
 
 type Tab = 'home' | 'trends' | 'records';
 
 // SPC control limits are only statistically meaningful once a baseline of
 // subgroups has been collected — charts stay hidden until then.
 const MIN_SUBGROUPS_FOR_CHARTS = 25;
+
+// The records list is fetched in pages instead of relying on the
+// (unbounded) dashboard subgroup list, which keeps the Records tab fast
+// as production history grows.
+const RECORDS_PAGE_SIZE = 20;
 
 function formatLabel(isoDate: string): string {
   const d = new Date(isoDate);
@@ -84,6 +90,11 @@ export function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [recordsPage, setRecordsPage] = useState(1);
+  const [records, setRecords] = useState<PaginatedSubgroups | null>(null);
+  const [recordsLoading, setRecordsLoading] = useState(false);
+  const [recordsError, setRecordsError] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -101,9 +112,40 @@ export function Dashboard() {
     }
   }, []);
 
+  const loadRecords = useCallback(async (page: number) => {
+    setRecordsLoading(true);
+    setRecordsError(null);
+    try {
+      const result = await fetchSubgroupsPage(page, RECORDS_PAGE_SIZE);
+      setRecords(result);
+    } catch (err) {
+      setRecordsError(err instanceof Error ? err.message : 'Could not load subgroups.');
+    } finally {
+      setRecordsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (tab === 'records') {
+      loadRecords(recordsPage);
+    }
+  }, [tab, recordsPage, loadRecords]);
+
+  // A delete can empty out the last page — step back so the view isn't stuck empty.
+  useEffect(() => {
+    if (records && records.subgroups.length === 0 && records.page > 1) {
+      setRecordsPage(records.page - 1);
+    }
+  }, [records]);
+
+  function handleRecordsMutated() {
+    load();
+    loadRecords(recordsPage);
+  }
 
   return (
     <div className="min-h-screen">
@@ -225,10 +267,35 @@ export function Dashboard() {
           </>
         )}
 
-        {tab === 'records' && data && (
+        {tab === 'records' && (
           <>
-            <SubgroupEditor subgroups={data.subgroups} onUpdated={load} />
-            <SubgroupList subgroups={data.subgroups} onDeleted={load} />
+            {recordsError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
+                {recordsError}
+                <button
+                  onClick={() => loadRecords(recordsPage)}
+                  className="ml-3 font-medium underline"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {recordsLoading && !records && <p className="text-sm text-muted">Loading…</p>}
+
+            {records && (
+              <>
+                <SubgroupEditor subgroups={records.subgroups} onUpdated={handleRecordsMutated} />
+                <SubgroupList subgroups={records.subgroups} onDeleted={handleRecordsMutated} />
+                <Pagination
+                  page={records.page}
+                  pageSize={records.pageSize}
+                  total={records.total}
+                  onPageChange={setRecordsPage}
+                  disabled={recordsLoading}
+                />
+              </>
+            )}
           </>
         )}
       </main>

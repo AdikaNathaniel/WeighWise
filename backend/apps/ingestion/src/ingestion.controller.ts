@@ -17,6 +17,11 @@ export class IngestionController {
     return this.ingestionService.listSubgroups();
   }
 
+  @MessagePattern(INGESTION_PATTERNS.LIST_SUBGROUPS_PAGE)
+  listSubgroupsPage(@Payload() payload: { page: number; pageSize: number }) {
+    return this.ingestionService.listSubgroupsPage(payload.page, payload.pageSize);
+  }
+
   @MessagePattern(INGESTION_PATTERNS.UPDATE_SUBGROUP)
   updateSubgroup(@Payload() payload: { id: string; dto: UpdateSubgroupDto }) {
     return this.ingestionService.updateSubgroup(payload.id, payload.dto);

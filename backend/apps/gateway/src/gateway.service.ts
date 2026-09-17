@@ -11,6 +11,7 @@ import {
   SpcSummary,
   ControlStatus,
   DashboardData,
+  PaginatedSubgroups,
 } from '@app/common';
 
 @Injectable()
@@ -27,6 +28,12 @@ export class GatewayService {
 
   listSubgroups(): Promise<Subgroup[]> {
     return firstValueFrom(this.ingestionClient.send(INGESTION_PATTERNS.LIST_SUBGROUPS, {}));
+  }
+
+  listSubgroupsPage(page: number, pageSize: number): Promise<PaginatedSubgroups> {
+    return firstValueFrom(
+      this.ingestionClient.send(INGESTION_PATTERNS.LIST_SUBGROUPS_PAGE, { page, pageSize }),
+    );
   }
 
   updateSubgroup(id: string, dto: UpdateSubgroupDto): Promise<Subgroup> {

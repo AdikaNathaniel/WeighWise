@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { CreateSubgroupDto, UpdateSubgroupDto } from '@app/common';
 import { GatewayService } from './gateway.service.js';
 
@@ -14,6 +14,11 @@ export class GatewayController {
   @Get('subgroups')
   listSubgroups() {
     return this.gatewayService.listSubgroups();
+  }
+
+  @Get('subgroups/page')
+  listSubgroupsPage(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+    return this.gatewayService.listSubgroupsPage(Number(page) || 1, Number(pageSize) || 20);
   }
 
   @Patch('subgroups/:id')

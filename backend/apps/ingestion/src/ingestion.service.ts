@@ -1,7 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { CreateSubgroupDto, Subgroup, UpdateSubgroupDto } from '@app/common';
+import { CreateSubgroupDto, PaginatedSubgroups, Subgroup, UpdateSubgroupDto } from '@app/common';
 import { SUPABASE_CLIENT } from './supabase.provider.js';
+
+const MAX_PAGE_SIZE = 100;
 
 interface SampleRow {
   sample_index: number;
@@ -73,6 +75,35 @@ export class IngestionService {
         .map((s) => Number(s.weight_g));
       return this.toSubgroup(row, weights);
     });
+  }
+
+  async listSubgroupsPage(page: number, pageSize: number): Promise<PaginatedSubgroups> {
+    const safePage = Math.max(1, Math.trunc(page) || 1);
+    const safePageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Math.trunc(pageSize) || 20));
+    const from = (safePage - 1) * safePageSize;
+    const to = from + safePageSize - 1;
+
+    const { data, error, count } = await this.supabase
+      .from('subgroups')
+      .select('id, production_date, sample_size, mean, range, created_at, samples(sample_index, weight_g)', {
+        count: 'exact',
+      })
+      .order('production_date', { ascending: false })
+      .range(from, to);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const subgroups = ((data ?? []) as SubgroupRow[]).map((row) => {
+      const weights = (row.samples ?? [])
+        .slice()
+        .sort((a, b) => a.sample_index - b.sample_index)
+        .map((s) => Number(s.weight_g));
+      return this.toSubgroup(row, weights);
+    });
+
+    return { subgroups, total: count ?? 0, page: safePage, pageSize: safePageSize };
   }
 
   async updateSubgroup(id: string, dto: UpdateSubgroupDto): Promise<Subgroup> {

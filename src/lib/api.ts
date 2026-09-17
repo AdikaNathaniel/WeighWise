@@ -1,4 +1,10 @@
-import { CreateSubgroupInput, DashboardData, Subgroup, UpdateSubgroupInput } from '@/types/spc';
+import {
+  CreateSubgroupInput,
+  DashboardData,
+  PaginatedSubgroups,
+  Subgroup,
+  UpdateSubgroupInput,
+} from '@/types/spc';
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL ?? 'http://localhost:3001';
 
@@ -26,6 +32,10 @@ export function createSubgroup(input: CreateSubgroupInput): Promise<Subgroup> {
     method: 'POST',
     body: JSON.stringify(input),
   });
+}
+
+export function fetchSubgroupsPage(page: number, pageSize: number): Promise<PaginatedSubgroups> {
+  return request<PaginatedSubgroups>(`/subgroups/page?page=${page}&pageSize=${pageSize}`);
 }
 
 export function updateSubgroup(id: string, input: UpdateSubgroupInput): Promise<Subgroup> {

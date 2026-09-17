@@ -51,3 +51,10 @@ export interface DashboardData {
   summary: SpcSummary;
   status: ControlStatus;
 }
+
+export interface PaginatedSubgroups {
+  subgroups: Subgroup[];
+  total: number;
+  page: number;
+  pageSize: number;
+}

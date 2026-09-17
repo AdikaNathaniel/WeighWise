@@ -63,3 +63,10 @@ export interface UpdateSubgroupInput {
   sampleSize: number;
   weights: number[];
 }
+
+export interface PaginatedSubgroups {
+  subgroups: Subgroup[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
