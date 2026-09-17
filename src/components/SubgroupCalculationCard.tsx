@@ -97,7 +97,9 @@ export function SubgroupCalculationCard({ data }: { data: DashboardData }) {
           <div key={row.label} className="flex items-center justify-between gap-4 py-2">
             <div>
               <div className="text-sm font-medium text-foreground">{row.label}</div>
-              <div className="text-xs text-muted">{row.formula}</div>
+              <div className="mt-1 inline-block rounded-md bg-primary-soft px-2 py-1 text-xs text-primary-hover">
+                {row.formula}
+              </div>
             </div>
             <div className="text-sm font-semibold text-primary whitespace-nowrap">
               {fmt(row.value)} g
