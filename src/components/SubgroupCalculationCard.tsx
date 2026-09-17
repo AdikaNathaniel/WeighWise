@@ -22,21 +22,28 @@ export function SubgroupCalculationCard({ data }: { data: DashboardData }) {
   const limits = data.summary.limitsBySubgroup.find((l) => l.subgroupId === latest.id);
   if (!limits) return null;
 
+  // Derive range and mean straight from the recorded weights (rather than
+  // trusting separately-stored values) so the number shown always matches
+  // the formula shown next to it.
   const min = Math.min(...latest.weights);
   const max = Math.max(...latest.weights);
+  const range = max - min;
+  const sum = latest.weights.reduce((total, w) => total + w, 0);
+  const mean = sum / latest.weights.length;
   const rBar = data.summary.averageRange;
   const grandMean = data.summary.grandMean;
+  const weightList = latest.weights.map(fmt).join(', ');
 
   const rows: { label: string; formula: string; value: number }[] = [
     {
       label: 'Range',
-      formula: `MAX − MIN = ${fmt(max)} − ${fmt(min)}`,
-      value: latest.range,
+      formula: `MAX(${weightList}) − MIN(${weightList}) = ${fmt(max)} − ${fmt(min)}`,
+      value: range,
     },
     {
       label: 'Mean',
-      formula: `AVERAGE(${latest.weights.length} samples)`,
-      value: latest.mean,
+      formula: `(${weightList}) ÷ ${latest.weights.length} = ${fmt(sum)} ÷ ${latest.weights.length}`,
+      value: mean,
     },
     {
       label: 'X-bar UCL',

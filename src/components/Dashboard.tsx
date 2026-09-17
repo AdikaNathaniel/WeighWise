@@ -13,6 +13,10 @@ import { OutOfControlList } from './OutOfControlList';
 
 type Tab = 'home' | 'trends';
 
+// SPC control limits are only statistically meaningful once a baseline of
+// subgroups has been collected — charts stay hidden until then.
+const MIN_SUBGROUPS_FOR_CHARTS = 25;
+
 function formatLabel(isoDate: string): string {
   const d = new Date(isoDate);
   return d.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
@@ -143,7 +147,35 @@ export function Dashboard() {
           </div>
         )}
 
-        {tab === 'trends' && data && data.subgroups.length > 0 && (
+        {tab === 'trends' &&
+          data &&
+          data.subgroups.length > 0 &&
+          data.subgroups.length < MIN_SUBGROUPS_FOR_CHARTS && (
+            <div className="rounded-lg border border-border bg-surface px-4 py-6 text-center text-sm text-muted space-y-3">
+              <p>
+                Charts unlock once a baseline of {MIN_SUBGROUPS_FOR_CHARTS} subgroups is
+                collected — control limits calculated from fewer subgroups aren&apos;t
+                statistically reliable.
+              </p>
+              <p className="font-medium text-foreground">
+                {data.subgroups.length} of {MIN_SUBGROUPS_FOR_CHARTS} subgroups recorded
+                ({MIN_SUBGROUPS_FOR_CHARTS - data.subgroups.length} to go)
+              </p>
+              <div className="mx-auto h-2 w-full max-w-xs overflow-hidden rounded-full bg-border">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      (data.subgroups.length / MIN_SUBGROUPS_FOR_CHARTS) * 100,
+                    )}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+        {tab === 'trends' && data && data.subgroups.length >= MIN_SUBGROUPS_FOR_CHARTS && (
           <>
             <SummaryPanel summary={data.summary} />
 
