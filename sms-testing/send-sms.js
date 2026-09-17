@@ -10,8 +10,10 @@ if (!apiKey || !rawTo || !message) {
   process.exit(1);
 }
 
-// Arkesel expects Ghanaian numbers in international format (233…) rather than a leading 0.
-const to = rawTo.startsWith('0') ? `233${rawTo.slice(1)}` : rawTo;
+// Arkesel expects Ghanaian numbers in international format (233…) with no
+// spaces, "+", or leading 0. Normalize whatever format was entered.
+const digits = rawTo.replace(/\D/g, '');
+const to = digits.startsWith('0') ? `233${digits.slice(1)}` : digits;
 
 async function main() {
   const res = await fetch('https://sms.arkesel.com/api/v2/sms/send', {
