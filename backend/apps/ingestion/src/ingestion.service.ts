@@ -1,6 +1,14 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { CreateSubgroupDto, PaginatedSubgroups, Subgroup, UpdateSubgroupDto } from '@app/common';
+import {
+  ColourBatch,
+  CreateColourBatchDto,
+  CreateSubgroupDto,
+  PaginatedSubgroups,
+  Subgroup,
+  UpdateColourBatchDto,
+  UpdateSubgroupDto,
+} from '@app/common';
 import { SUPABASE_CLIENT } from './supabase.provider.js';
 
 const MAX_PAGE_SIZE = 100;
@@ -18,6 +26,15 @@ interface SubgroupRow {
   range: number;
   created_at: string;
   samples?: SampleRow[];
+}
+
+interface ColourBatchRow {
+  id: string;
+  batch_label: string;
+  production_date: string | null;
+  samples_inspected: number;
+  nonconforming: number;
+  created_at: string;
 }
 
 @Injectable()
@@ -154,6 +171,79 @@ export class IngestionService {
       throw new Error(error.message);
     }
     return { id };
+  }
+
+  async createColourBatch(dto: CreateColourBatchDto): Promise<ColourBatch> {
+    const { data, error } = await this.supabase
+      .from('colour_batches')
+      .insert(this.toColourBatchRow(dto))
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+    return this.toColourBatch(data as ColourBatchRow);
+  }
+
+  /**
+   * Batches are returned in production order (date, then entry time) so the
+   * p-chart plots them as a time sequence. Undated batches follow in the
+   * order they were entered.
+   */
+  async listColourBatches(): Promise<ColourBatch[]> {
+    const { data, error } = await this.supabase
+      .from('colour_batches')
+      .select('id, batch_label, production_date, samples_inspected, nonconforming, created_at')
+      .order('production_date', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+    return ((data ?? []) as ColourBatchRow[]).map((row) => this.toColourBatch(row));
+  }
+
+  async updateColourBatch(id: string, dto: UpdateColourBatchDto): Promise<ColourBatch> {
+    const { data, error } = await this.supabase
+      .from('colour_batches')
+      .update(this.toColourBatchRow(dto))
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+    return this.toColourBatch(data as ColourBatchRow);
+  }
+
+  async deleteColourBatch(id: string): Promise<{ id: string }> {
+    const { error } = await this.supabase.from('colour_batches').delete().eq('id', id);
+    if (error) {
+      throw new Error(error.message);
+    }
+    return { id };
+  }
+
+  private toColourBatchRow(dto: CreateColourBatchDto) {
+    return {
+      batch_label: dto.batchLabel.trim(),
+      production_date: dto.productionDate || null,
+      samples_inspected: dto.samplesInspected,
+      nonconforming: dto.nonconforming,
+    };
+  }
+
+  private toColourBatch(row: ColourBatchRow): ColourBatch {
+    return {
+      id: row.id,
+      batchLabel: row.batch_label,
+      productionDate: row.production_date,
+      samplesInspected: Number(row.samples_inspected),
+      nonconforming: Number(row.nonconforming),
+      createdAt: row.created_at,
+    };
   }
 
   private toSubgroup(row: SubgroupRow, weights: number[]): Subgroup {

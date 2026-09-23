@@ -1,6 +1,12 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { INGESTION_PATTERNS, CreateSubgroupDto, UpdateSubgroupDto } from '@app/common';
+import {
+  INGESTION_PATTERNS,
+  CreateColourBatchDto,
+  CreateSubgroupDto,
+  UpdateColourBatchDto,
+  UpdateSubgroupDto,
+} from '@app/common';
 import { IngestionService } from './ingestion.service.js';
 
 @Controller()
@@ -30,5 +36,25 @@ export class IngestionController {
   @MessagePattern(INGESTION_PATTERNS.DELETE_SUBGROUP)
   deleteSubgroup(@Payload() id: string) {
     return this.ingestionService.deleteSubgroup(id);
+  }
+
+  @MessagePattern(INGESTION_PATTERNS.CREATE_COLOUR_BATCH)
+  createColourBatch(@Payload() dto: CreateColourBatchDto) {
+    return this.ingestionService.createColourBatch(dto);
+  }
+
+  @MessagePattern(INGESTION_PATTERNS.LIST_COLOUR_BATCHES)
+  listColourBatches() {
+    return this.ingestionService.listColourBatches();
+  }
+
+  @MessagePattern(INGESTION_PATTERNS.UPDATE_COLOUR_BATCH)
+  updateColourBatch(@Payload() payload: { id: string; dto: UpdateColourBatchDto }) {
+    return this.ingestionService.updateColourBatch(payload.id, payload.dto);
+  }
+
+  @MessagePattern(INGESTION_PATTERNS.DELETE_COLOUR_BATCH)
+  deleteColourBatch(@Payload() id: string) {
+    return this.ingestionService.deleteColourBatch(id);
   }
 }

@@ -1,5 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { getControlChartConstants, Subgroup, SpcSummary, SubgroupControlLimits } from '@app/common';
+import {
+  ColourBatch,
+  getControlChartConstants,
+  PChartData,
+  PChartPoint,
+  Subgroup,
+  SpcSummary,
+  SubgroupControlLimits,
+} from '@app/common';
 
 @Injectable()
 export class SpcEngineService {
@@ -53,6 +61,81 @@ export class SpcEngineService {
       subgroupCount: subgroups.length,
       totalSampleCount,
       limitsBySubgroup,
+    };
+  }
+
+  /**
+   * p-chart for the proportion of nonconforming (off-colour) samples per batch:
+   *   p_i   = d_i / n_i
+   *   p-bar = Σd / Σn          (weighted by batch size, not a mean of p_i)
+   *   σ_i   = √(p-bar(1 − p-bar) / n_i)
+   *   UCL_i = min(1, p-bar + 3σ_i),  LCL_i = max(0, p-bar − 3σ_i)
+   * Limits vary per batch because n_i varies. Batches with invalid counts are
+   * skipped rather than plotted as zero.
+   */
+  computePChart(batches: ColourBatch[]): PChartData {
+    const valid = batches.filter(
+      (b) =>
+        Number.isInteger(b.samplesInspected) &&
+        Number.isInteger(b.nonconforming) &&
+        b.samplesInspected > 0 &&
+        b.nonconforming >= 0 &&
+        b.nonconforming <= b.samplesInspected,
+    );
+
+    if (valid.length === 0) {
+      return {
+        points: [],
+        summary: {
+          totalBatches: 0,
+          totalSamples: 0,
+          totalNonconforming: 0,
+          overallProportion: null,
+          outOfControlCount: 0,
+          isStable: true,
+        },
+      };
+    }
+
+    const totalSamples = valid.reduce((sum, b) => sum + b.samplesInspected, 0);
+    const totalNonconforming = valid.reduce((sum, b) => sum + b.nonconforming, 0);
+    const pBar = totalNonconforming / totalSamples;
+
+    const points: PChartPoint[] = valid.map((b) => {
+      const proportion = b.nonconforming / b.samplesInspected;
+      const sigma = Math.sqrt((pBar * (1 - pBar)) / b.samplesInspected);
+      const ucl = Math.min(1, pBar + 3 * sigma);
+      const lcl = Math.max(0, pBar - 3 * sigma);
+      const violatedLimit = proportion > ucl ? 'ucl' : proportion < lcl ? 'lcl' : null;
+      return {
+        batchId: b.id,
+        batchLabel: b.batchLabel,
+        productionDate: b.productionDate,
+        samplesInspected: b.samplesInspected,
+        nonconforming: b.nonconforming,
+        conforming: b.samplesInspected - b.nonconforming,
+        proportion,
+        sigma,
+        cl: pBar,
+        ucl,
+        lcl,
+        status: violatedLimit ? 'out-of-control' : 'in-control',
+        violatedLimit,
+      };
+    });
+
+    const outOfControlCount = points.filter((p) => p.status === 'out-of-control').length;
+
+    return {
+      points,
+      summary: {
+        totalBatches: points.length,
+        totalSamples,
+        totalNonconforming,
+        overallProportion: pBar,
+        outOfControlCount,
+        isStable: outOfControlCount === 0,
+      },
     };
   }
 }

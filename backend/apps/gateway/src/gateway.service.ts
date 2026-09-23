@@ -12,6 +12,10 @@ import {
   ControlStatus,
   DashboardData,
   PaginatedSubgroups,
+  ColourBatch,
+  CreateColourBatchDto,
+  UpdateColourBatchDto,
+  PChartData,
 } from '@app/common';
 
 @Injectable()
@@ -61,5 +65,28 @@ export class GatewayService {
     );
 
     return { subgroups, summary, status };
+  }
+
+  createColourBatch(dto: CreateColourBatchDto): Promise<ColourBatch> {
+    return firstValueFrom(this.ingestionClient.send(INGESTION_PATTERNS.CREATE_COLOUR_BATCH, dto));
+  }
+
+  updateColourBatch(id: string, dto: UpdateColourBatchDto): Promise<ColourBatch> {
+    return firstValueFrom(
+      this.ingestionClient.send(INGESTION_PATTERNS.UPDATE_COLOUR_BATCH, { id, dto }),
+    );
+  }
+
+  deleteColourBatch(id: string): Promise<{ id: string }> {
+    return firstValueFrom(this.ingestionClient.send(INGESTION_PATTERNS.DELETE_COLOUR_BATCH, id));
+  }
+
+  async getPChart(): Promise<PChartData> {
+    const batches = await firstValueFrom(
+      this.ingestionClient.send<ColourBatch[]>(INGESTION_PATTERNS.LIST_COLOUR_BATCHES, {}),
+    );
+    return firstValueFrom(
+      this.spcEngineClient.send<PChartData>(SPC_ENGINE_PATTERNS.COMPUTE_P_CHART, batches),
+    );
   }
 }

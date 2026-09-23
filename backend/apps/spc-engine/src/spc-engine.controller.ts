@@ -1,6 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { SPC_ENGINE_PATTERNS, Subgroup } from '@app/common';
+import { ColourBatch, SPC_ENGINE_PATTERNS, Subgroup } from '@app/common';
 import { SpcEngineService } from './spc-engine.service.js';
 
 @Controller()
@@ -10,5 +10,10 @@ export class SpcEngineController {
   @MessagePattern(SPC_ENGINE_PATTERNS.COMPUTE_SUMMARY)
   computeSummary(@Payload() subgroups: Subgroup[]) {
     return this.spcEngineService.computeSummary(subgroups);
+  }
+
+  @MessagePattern(SPC_ENGINE_PATTERNS.COMPUTE_P_CHART)
+  computePChart(@Payload() batches: ColourBatch[]) {
+    return this.spcEngineService.computePChart(batches);
   }
 }

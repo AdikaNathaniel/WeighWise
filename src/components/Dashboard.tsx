@@ -14,8 +14,9 @@ import { OutOfControlList } from './OutOfControlList';
 import { SubgroupList } from './SubgroupList';
 import { SubgroupEditor } from './SubgroupEditor';
 import { Pagination } from './Pagination';
+import { ColourPChartModule } from './pchart/ColourPChartModule';
 
-type Tab = 'home' | 'trends' | 'records';
+type Tab = 'home' | 'trends' | 'records' | 'colour';
 
 // SPC control limits are only statistically meaningful once a baseline of
 // subgroups has been collected — charts stay hidden until then.
@@ -163,11 +164,14 @@ export function Dashboard() {
             <TabButton active={tab === 'records'} onClick={() => setTab('records')}>
               Records
             </TabButton>
+            <TabButton active={tab === 'colour'} onClick={() => setTab('colour')}>
+              Tom Brown p-Chart
+            </TabButton>
           </div>
-          {data && <StatusBadge isStable={data.status.isStable} />}
+          {data && tab !== 'colour' && <StatusBadge isStable={data.status.isStable} />}
         </div>
 
-        {error && (
+        {error && tab !== 'colour' && (
           <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
             {error}
             <button onClick={load} className="ml-3 font-medium underline">
@@ -176,7 +180,7 @@ export function Dashboard() {
           </div>
         )}
 
-        {loading && !data && <p className="text-sm text-muted">Loading…</p>}
+        {loading && !data && tab !== 'colour' && <p className="text-sm text-muted">Loading…</p>}
 
         {tab === 'home' && (
           <>
@@ -266,6 +270,8 @@ export function Dashboard() {
             </div>
           </>
         )}
+
+        {tab === 'colour' && <ColourPChartModule />}
 
         {tab === 'records' && (
           <>
