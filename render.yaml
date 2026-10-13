@@ -6,7 +6,7 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     region: frankfurt
-    plan: starter
+    plan: free
     autoDeployTrigger: commit
     buildFilter:
       paths:
