@@ -13,6 +13,7 @@ import { useEnabledRules } from '@/lib/useEnabledRules';
 import { ClearedColourBatch, PChartData } from '@/types/pChart';
 import { RuleSignalList } from '../RuleSignalList';
 import { RuleToggles } from '../RuleToggles';
+import { ConfirmDialog } from '../ConfirmDialog';
 import { ColourBatchForm } from './ColourBatchForm';
 import { ColourBatchUploadForm } from './ColourBatchUploadForm';
 import { ColourBatchTable } from './ColourBatchTable';
@@ -68,6 +69,7 @@ export function ColourPChartModule() {
   const [entryMode, setEntryMode] = useState<'manual' | 'upload'>('manual');
   const [cleared, setCleared] = useState<ClearedColourBatch[]>([]);
   const [busy, setBusy] = useState(false);
+  const [confirmingClear, setConfirmingClear] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [enabledRules, setRule] = useEnabledRules();
   const [error, setError] = useState<string | null>(null);
@@ -107,15 +109,9 @@ export function ColourPChartModule() {
   // Batches from the most recent clear — what the Restore button brings back.
   const lastClear = cleared.filter((b) => b.clearedAt === cleared[0]?.clearedAt);
 
+  const activeCount = rawData?.points.length ?? 0;
+
   async function handleClearAll() {
-    const count = rawData?.points.length ?? 0;
-    if (
-      !window.confirm(
-        `Clear all ${count} batch${count === 1 ? '' : 'es'} from the p-chart? They are archived, not deleted, and can be restored afterwards.`,
-      )
-    ) {
-      return;
-    }
     setBusy(true);
     try {
       const result = await clearColourBatches();
@@ -125,6 +121,7 @@ export function ColourPChartModule() {
       setError(err instanceof Error ? err.message : 'Could not clear the batches.');
     } finally {
       setBusy(false);
+      setConfirmingClear(false);
     }
   }
 
@@ -155,6 +152,22 @@ export function ColourPChartModule() {
 
   return (
     <div className="space-y-6">
+      <ConfirmDialog
+        open={confirmingClear}
+        title={`Clear all ${activeCount} batch${activeCount === 1 ? '' : 'es'}?`}
+        message={
+          <p>
+            Every batch will be removed from the p-chart, the batch table and the rule signals.
+            They are <strong className="text-foreground">archived, not deleted</strong> — use{' '}
+            <em>Restore cleared batches</em> to bring them back.
+          </p>
+        }
+        confirmLabel="Clear all batches"
+        destructive
+        busy={busy}
+        onConfirm={handleClearAll}
+        onCancel={() => setConfirmingClear(false)}
+      />
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-base font-semibold text-foreground">Tom Brown colour p-chart</h2>
@@ -177,7 +190,7 @@ export function ColourPChartModule() {
             {hasBatches && (
               <button
                 type="button"
-                onClick={handleClearAll}
+                onClick={() => setConfirmingClear(true)}
                 disabled={busy}
                 className="rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
               >
