@@ -1,15 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchPChart } from '@/lib/api';
-import {
-  exportPChartCsv,
-  exportPChartXlsx,
-  formatBatchDate,
-  formatPercent,
-  INVESTIGATE_MESSAGE,
-} from '@/lib/pChartFormat';
+import { exportPChartCsv, exportPChartXlsx, formatBatchDate, INVESTIGATE_MESSAGE } from '@/lib/pChartFormat';
+import { detectSignals, RuleId, RuleSignal, rulesByPoint } from '@/lib/nelsonRules';
+import { useEnabledRules } from '@/lib/useEnabledRules';
 import { PChartData } from '@/types/pChart';
+import { RuleSignalList } from '../RuleSignalList';
+import { RuleToggles } from '../RuleToggles';
 import { ColourBatchForm } from './ColourBatchForm';
 import { ColourBatchTable } from './ColourBatchTable';
 import { PChart } from './PChart';
@@ -19,6 +17,39 @@ import { PChartSummaryPanel } from './PChartSummaryPanel';
 // still shown so the processor sees each new batch immediately.
 const RECOMMENDED_BASELINE_BATCHES = 20;
 
+interface RuleAnalysis {
+  /** The data with each batch's status and the summary driven by the enabled rules. */
+  data: PChartData;
+  signals: RuleSignal[];
+  rules: RuleId[][];
+}
+
+/**
+ * The backend only flags points beyond the 3σ limits (rule 1). Re-derive batch
+ * status from every enabled Nelson rule so the table, summary and exports all
+ * agree with the chart.
+ */
+function analyse(raw: PChartData, enabled: RuleId[]): RuleAnalysis {
+  const signals = detectSignals(
+    raw.points.map((p) => ({ value: p.proportion, cl: p.cl, sigma: p.sigma, ucl: p.ucl, lcl: p.lcl })),
+    enabled,
+  );
+  const rules = rulesByPoint(signals, raw.points.length);
+  const points = raw.points.map((p, i) => ({
+    ...p,
+    status: rules[i].length > 0 ? ('out-of-control' as const) : ('in-control' as const),
+  }));
+  const outOfControlCount = points.filter((p) => p.status === 'out-of-control').length;
+  return {
+    data: {
+      points,
+      summary: { ...raw.summary, outOfControlCount, isStable: outOfControlCount === 0 },
+    },
+    signals,
+    rules,
+  };
+}
+
 function nextBatchLabel(data: PChartData | null): string {
   const numeric = (data?.points ?? [])
     .map((p) => Number(p.batchLabel))
@@ -27,7 +58,8 @@ function nextBatchLabel(data: PChartData | null): string {
 }
 
 export function ColourPChartModule() {
-  const [data, setData] = useState<PChartData | null>(null);
+  const [rawData, setData] = useState<PChartData | null>(null);
+  const [enabledRules, setRule] = useEnabledRules();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -53,7 +85,11 @@ export function ColourPChartModule() {
     applyResult(fetchPChart());
   }, [applyResult]);
 
-  const outOfControl = data?.points.filter((p) => p.status === 'out-of-control') ?? [];
+  const analysis = useMemo(
+    () => (rawData ? analyse(rawData, enabledRules) : null),
+    [rawData, enabledRules],
+  );
+  const data = analysis?.data ?? null;
   const hasBatches = !!data && data.points.length > 0;
 
   return (
@@ -112,30 +148,14 @@ export function ColourPChartModule() {
             >
               {data.summary.isStable ? (
                 <span className="font-semibold">
-                  All batches are within the control limits — no points outside limits.
+                  No enabled rule is triggered — no special-cause signals.
                 </span>
               ) : (
-                <div className="space-y-2">
-                  <p className="font-semibold">
-                    {outOfControl.length} batch{outOfControl.length === 1 ? '' : 'es'} out of
-                    control — investigate the process.
-                  </p>
-                  <ul className="space-y-1">
-                    {outOfControl.map((p) => (
-                      <li key={p.batchId}>
-                        <span className="font-medium">
-                          Batch {p.batchLabel}
-                          {p.productionDate && ` (${formatBatchDate(p.productionDate)})`}
-                        </span>
-                        : p = {formatPercent(p.proportion)}{' '}
-                        {p.violatedLimit === 'lcl'
-                          ? `< LCL ${formatPercent(p.lcl)}`
-                          : `> UCL ${formatPercent(p.ucl)}`}
-                        . {INVESTIGATE_MESSAGE}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                <p className="font-semibold">
+                  {data.summary.outOfControlCount} batch
+                  {data.summary.outOfControlCount === 1 ? '' : 'es'} involved in rule signals —
+                  investigate the process. {INVESTIGATE_MESSAGE}
+                </p>
               )}
             </div>
           )}
@@ -147,7 +167,26 @@ export function ColourPChartModule() {
             </p>
           )}
 
-          {hasBatches && <PChart points={data.points} />}
+          {hasBatches && analysis && (
+            <>
+              <RuleToggles enabled={enabledRules} onChange={setRule} />
+              <PChart points={data.points} rules={analysis.rules} />
+              <div className="rounded-lg border border-border bg-surface p-4">
+                <h3 className="text-sm font-semibold mb-3">Rule signals</h3>
+                <RuleSignalList
+                  groups={[
+                    {
+                      signals: analysis.signals,
+                      points: data.points.map((p) => ({
+                        batch: p.batchLabel,
+                        date: formatBatchDate(p.productionDate),
+                      })),
+                    },
+                  ]}
+                />
+              </div>
+            </>
+          )}
 
           <ColourBatchTable points={data.points} onChanged={load} />
 

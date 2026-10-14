@@ -261,7 +261,13 @@ export function ColourBatchTable({
                   {outOfControl && !editing && (
                     <tr className={rowTone}>
                       <td colSpan={12} className="pb-2 pr-3 text-xs text-red-700">
-                        ⚠ Batch {p.batchLabel} is {p.violatedLimit === 'lcl' ? 'below the LCL' : 'above the UCL'}.{' '}
+                        ⚠ Batch {p.batchLabel}{' '}
+                        {p.violatedLimit === 'lcl'
+                          ? 'is below the LCL'
+                          : p.violatedLimit === 'ucl'
+                            ? 'is above the UCL'
+                            : 'is part of a control chart rule signal'}
+                        .{' '}
                         {INVESTIGATE_MESSAGE}
                       </td>
                     </tr>

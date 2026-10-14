@@ -1,7 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchDashboard, fetchSubgroupsPage } from '@/lib/api';
+import { detectSignals, RuleId, RulePoint, RuleSignal, rulesByPoint } from '@/lib/nelsonRules';
+import { useEnabledRules } from '@/lib/useEnabledRules';
+import { formatBatchDate } from '@/lib/pChartFormat';
 import { DashboardData, PaginatedSubgroups } from '@/types/spc';
 import { Header } from './Header';
 import { StatusBadge } from './StatusBadge';
@@ -10,7 +13,8 @@ import { ExcelUploadForm } from './ExcelUploadForm';
 import { SubgroupCalculationCard } from './SubgroupCalculationCard';
 import { SummaryPanel } from './SummaryPanel';
 import { ControlChart, ControlChartPoint } from './ControlChart';
-import { OutOfControlList } from './OutOfControlList';
+import { RuleSignalList, SignalPointInfo } from './RuleSignalList';
+import { RuleToggles } from './RuleToggles';
 import { SubgroupList } from './SubgroupList';
 import { SubgroupEditor } from './SubgroupEditor';
 import { Pagination } from './Pagination';
@@ -32,33 +36,43 @@ function formatLabel(isoDate: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
 }
 
-function buildChartData(data: DashboardData, chart: 'x-bar' | 'r'): ControlChartPoint[] {
-  return data.subgroups.map((s) => {
+type ChartKind = 'x-bar' | 'r';
+
+interface ChartAnalysis {
+  chartData: ControlChartPoint[];
+  signals: RuleSignal[];
+}
+
+function analyseChart(data: DashboardData, chart: ChartKind, enabled: RuleId[]): ChartAnalysis {
+  const points = data.subgroups.map((s) => {
     const limits = data.summary.limitsBySubgroup.find((l) => l.subgroupId === s.id);
-    const outOfControl = data.status.outOfControlPoints.some(
-      (p) => p.subgroupId === s.id && p.chart === chart,
-    );
-
-    if (chart === 'x-bar') {
-      return {
-        label: formatLabel(s.productionDate),
-        value: s.mean,
-        ucl: limits?.xBar.ucl ?? 0,
-        cl: limits?.xBar.cl ?? 0,
-        lcl: limits?.xBar.lcl ?? 0,
-        outOfControl,
-      };
-    }
-
+    const band = chart === 'x-bar' ? limits?.xBar : limits?.r;
+    const ucl = band?.ucl ?? 0;
+    const cl = band?.cl ?? 0;
     return {
       label: formatLabel(s.productionDate),
-      value: s.range,
-      ucl: limits?.r.ucl ?? 0,
-      cl: limits?.r.cl ?? 0,
-      lcl: limits?.r.lcl ?? 0,
-      outOfControl,
-    };
+      value: chart === 'x-bar' ? s.mean : s.range,
+      ucl,
+      cl,
+      lcl: band?.lcl ?? 0,
+      // Limits are 3σ from the centre line, so σ is a third of that distance.
+      sigma: (ucl - cl) / 3,
+    } satisfies RulePoint & { label: string };
   });
+
+  const signals = detectSignals(points, enabled);
+  const rules = rulesByPoint(signals, points.length);
+  return {
+    chartData: points.map(({ label, value, ucl, cl, lcl }, i) => ({
+      label,
+      value,
+      ucl,
+      cl,
+      lcl,
+      rules: rules[i],
+    })),
+    signals,
+  };
 }
 
 function TabButton({
@@ -90,6 +104,8 @@ export function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [enabledRules, setRule] = useEnabledRules();
 
   const [recordsPage, setRecordsPage] = useState(1);
   const [records, setRecords] = useState<PaginatedSubgroups | null>(null);
@@ -143,6 +159,22 @@ export function Dashboard() {
     }
   }, [records]);
 
+  const analysis = useMemo(() => {
+    if (!data) return null;
+    const xBar = analyseChart(data, 'x-bar', enabledRules);
+    const r = analyseChart(data, 'r', enabledRules);
+    const points: SignalPointInfo[] = data.subgroups.map((s, i) => ({
+      batch: `#${i + 1}`,
+      date: formatBatchDate(s.productionDate),
+    }));
+    return {
+      xBar,
+      r,
+      points,
+      isStable: xBar.signals.length === 0 && r.signals.length === 0,
+    };
+  }, [data, enabledRules]);
+
   function handleRecordsMutated() {
     load();
     loadRecords(recordsPage);
@@ -168,7 +200,7 @@ export function Dashboard() {
               Tom Brown p-Chart
             </TabButton>
           </div>
-          {data && tab !== 'colour' && <StatusBadge isStable={data.status.isStable} />}
+          {analysis && tab !== 'colour' && <StatusBadge isStable={analysis.isStable} />}
         </div>
 
         {error && tab !== 'colour' && (
@@ -247,26 +279,33 @@ export function Dashboard() {
             </div>
           )}
 
-        {tab === 'trends' && data && data.subgroups.length >= MIN_SUBGROUPS_FOR_CHARTS && (
+        {tab === 'trends' && analysis && data && data.subgroups.length >= MIN_SUBGROUPS_FOR_CHARTS && (
           <>
             <SummaryPanel summary={data.summary} />
+
+            <RuleToggles enabled={enabledRules} onChange={setRule} />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <ControlChart
                 title="X-bar chart — subgroup mean"
                 unit="g"
-                data={buildChartData(data, 'x-bar')}
+                data={analysis.xBar.chartData}
               />
               <ControlChart
                 title="R chart — subgroup range"
                 unit="g"
-                data={buildChartData(data, 'r')}
+                data={analysis.r.chartData}
               />
             </div>
 
             <div className="rounded-lg border border-border bg-surface p-4">
-              <h3 className="text-sm font-semibold mb-3">Out-of-control points</h3>
-              <OutOfControlList points={data.status.outOfControlPoints} />
+              <h3 className="text-sm font-semibold mb-3">Rule signals</h3>
+              <RuleSignalList
+                groups={[
+                  { chart: 'X-bar', signals: analysis.xBar.signals, points: analysis.points },
+                  { chart: 'R', signals: analysis.r.signals, points: analysis.points },
+                ]}
+              />
             </div>
           </>
         )}

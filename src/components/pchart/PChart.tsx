@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { PChartPoint } from '@/types/pChart';
 import { formatBatchDate } from '@/lib/pChartFormat';
+import { RuleId } from '@/lib/nelsonRules';
 
 // Plotted values are percentages (0–100) so the axis and tooltip read as %.
 interface ChartRow {
@@ -21,7 +22,8 @@ interface ChartRow {
   ucl: number;
   cl: number;
   lcl: number;
-  outOfControl: boolean;
+  /** Nelson rules whose signals include this batch (empty = no signal). */
+  rules: RuleId[];
 }
 
 function toPercent(fraction: number): number {
@@ -31,7 +33,7 @@ function toPercent(fraction: number): number {
 function ProportionDot(props: { cx?: number; cy?: number; payload?: ChartRow }) {
   const { cx, cy, payload } = props;
   if (cx === undefined || cy === undefined || !payload) return null;
-  return payload.outOfControl ? (
+  return payload.rules.length > 0 ? (
     <circle cx={cx} cy={cy} r={6} fill="#dc2626" stroke="#fff" strokeWidth={2} />
   ) : (
     <circle cx={cx} cy={cy} r={4} fill="#92400e" stroke="none" />
@@ -57,20 +59,24 @@ function ChartTooltip({
       <div>UCL: {row.ucl.toFixed(2)}%</div>
       <div>Centre line (p̄): {row.cl.toFixed(2)}%</div>
       <div>LCL: {row.lcl.toFixed(2)}%</div>
-      {row.outOfControl && <div className="font-semibold text-red-600">Out of control</div>}
+      {row.rules.length > 0 && (
+        <div className="font-semibold text-red-600">
+          Signal: rule{row.rules.length > 1 ? 's' : ''} {row.rules.join(', ')}
+        </div>
+      )}
     </div>
   );
 }
 
-export function PChart({ points }: { points: PChartPoint[] }) {
-  const data: ChartRow[] = points.map((p) => ({
+export function PChart({ points, rules }: { points: PChartPoint[]; rules: RuleId[][] }) {
+  const data: ChartRow[] = points.map((p, i) => ({
     label: p.batchLabel,
     date: p.productionDate,
     p: toPercent(p.proportion),
     ucl: toPercent(p.ucl),
     cl: toPercent(p.cl),
     lcl: toPercent(p.lcl),
-    outOfControl: p.status === 'out-of-control',
+    rules: rules[i] ?? [],
   }));
 
   return (
