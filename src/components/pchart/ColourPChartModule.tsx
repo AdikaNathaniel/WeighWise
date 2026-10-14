@@ -9,6 +9,7 @@ import { PChartData } from '@/types/pChart';
 import { RuleSignalList } from '../RuleSignalList';
 import { RuleToggles } from '../RuleToggles';
 import { ColourBatchForm } from './ColourBatchForm';
+import { ColourBatchUploadForm } from './ColourBatchUploadForm';
 import { ColourBatchTable } from './ColourBatchTable';
 import { PChart } from './PChart';
 import { PChartSummaryPanel } from './PChartSummaryPanel';
@@ -59,6 +60,7 @@ function nextBatchLabel(data: PChartData | null): string {
 
 export function ColourPChartModule() {
   const [rawData, setData] = useState<PChartData | null>(null);
+  const [entryMode, setEntryMode] = useState<'manual' | 'upload'>('manual');
   const [enabledRules, setRule] = useEnabledRules();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -121,7 +123,31 @@ export function ColourPChartModule() {
         )}
       </div>
 
-      <ColourBatchForm suggestedBatchLabel={nextBatchLabel(data)} onCreated={load} />
+      <div className="flex gap-2">
+        {(['manual', 'upload'] as const).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => setEntryMode(mode)}
+            className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+              entryMode === mode
+                ? 'bg-primary text-white'
+                : 'bg-surface text-muted border border-border hover:text-foreground'
+            }`}
+          >
+            {mode === 'manual' ? 'Manual entry' : 'Upload spreadsheet'}
+          </button>
+        ))}
+      </div>
+
+      {entryMode === 'manual' ? (
+        <ColourBatchForm suggestedBatchLabel={nextBatchLabel(data)} onCreated={load} />
+      ) : (
+        <ColourBatchUploadForm
+          existingLabels={rawData?.points.map((p) => p.batchLabel) ?? []}
+          onImported={load}
+        />
+      )}
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
