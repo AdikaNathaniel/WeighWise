@@ -13,7 +13,10 @@ import {
   DashboardData,
   PaginatedSubgroups,
   ColourBatch,
+  ClearColourBatchesResult,
+  ClearedColourBatch,
   CreateColourBatchDto,
+  RestoreColourBatchesResult,
   UpdateColourBatchDto,
   PChartData,
 } from '@app/common';
@@ -79,6 +82,26 @@ export class GatewayService {
 
   deleteColourBatch(id: string): Promise<{ id: string }> {
     return firstValueFrom(this.ingestionClient.send(INGESTION_PATTERNS.DELETE_COLOUR_BATCH, id));
+  }
+
+  listColourBatches(): Promise<ColourBatch[]> {
+    return firstValueFrom(this.ingestionClient.send(INGESTION_PATTERNS.LIST_COLOUR_BATCHES, {}));
+  }
+
+  clearColourBatches(): Promise<ClearColourBatchesResult> {
+    return firstValueFrom(this.ingestionClient.send(INGESTION_PATTERNS.CLEAR_COLOUR_BATCHES, {}));
+  }
+
+  listClearedColourBatches(): Promise<ClearedColourBatch[]> {
+    return firstValueFrom(
+      this.ingestionClient.send(INGESTION_PATTERNS.LIST_CLEARED_COLOUR_BATCHES, {}),
+    );
+  }
+
+  restoreColourBatches(clearedAt?: string): Promise<RestoreColourBatchesResult> {
+    return firstValueFrom(
+      this.ingestionClient.send(INGESTION_PATTERNS.RESTORE_COLOUR_BATCHES, { clearedAt }),
+    );
   }
 
   async getPChart(): Promise<PChartData> {

@@ -1,11 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchPChart } from '@/lib/api';
+import {
+  clearColourBatches,
+  fetchClearedColourBatches,
+  fetchPChart,
+  restoreColourBatches,
+} from '@/lib/api';
 import { exportPChartCsv, exportPChartXlsx, formatBatchDate, INVESTIGATE_MESSAGE } from '@/lib/pChartFormat';
 import { detectSignals, RuleId, RuleSignal, rulesByPoint } from '@/lib/nelsonRules';
 import { useEnabledRules } from '@/lib/useEnabledRules';
-import { PChartData } from '@/types/pChart';
+import { ClearedColourBatch, PChartData } from '@/types/pChart';
 import { RuleSignalList } from '../RuleSignalList';
 import { RuleToggles } from '../RuleToggles';
 import { ColourBatchForm } from './ColourBatchForm';
@@ -61,9 +66,19 @@ function nextBatchLabel(data: PChartData | null): string {
 export function ColourPChartModule() {
   const [rawData, setData] = useState<PChartData | null>(null);
   const [entryMode, setEntryMode] = useState<'manual' | 'upload'>('manual');
+  const [cleared, setCleared] = useState<ClearedColourBatch[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [enabledRules, setRule] = useEnabledRules();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // The cleared list only drives the Restore button, so a failure just hides it.
+  const loadCleared = useCallback(() => {
+    fetchClearedColourBatches()
+      .then(setCleared)
+      .catch(() => setCleared([]));
+  }, []);
 
   const applyResult = useCallback((request: Promise<PChartData>) => {
     return request
@@ -81,11 +96,55 @@ export function ColourPChartModule() {
   const load = useCallback(() => {
     setLoading(true);
     applyResult(fetchPChart());
-  }, [applyResult]);
+    loadCleared();
+  }, [applyResult, loadCleared]);
 
   useEffect(() => {
     applyResult(fetchPChart());
-  }, [applyResult]);
+    loadCleared();
+  }, [applyResult, loadCleared]);
+
+  // Batches from the most recent clear — what the Restore button brings back.
+  const lastClear = cleared.filter((b) => b.clearedAt === cleared[0]?.clearedAt);
+
+  async function handleClearAll() {
+    const count = rawData?.points.length ?? 0;
+    if (
+      !window.confirm(
+        `Clear all ${count} batch${count === 1 ? '' : 'es'} from the p-chart? They are archived, not deleted, and can be restored afterwards.`,
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await clearColourBatches();
+      setNotice(`${result.cleared} batch${result.cleared === 1 ? '' : 'es'} cleared.`);
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not clear the batches.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRestore() {
+    setBusy(true);
+    try {
+      const result = await restoreColourBatches(lastClear[0]?.clearedAt);
+      setNotice(
+        `${result.restored} batch${result.restored === 1 ? '' : 'es'} restored.` +
+          (result.skippedLabels.length
+            ? ` Not restored (batch number already in use): ${result.skippedLabels.join(', ')}.`
+            : ''),
+      );
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not restore the batches.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const analysis = useMemo(
     () => (rawData ? analyse(rawData, enabledRules) : null),
@@ -103,6 +162,30 @@ export function ColourPChartModule() {
             Monitors whether product colour stays in the light-brown range from batch to batch.
           </p>
         </div>
+        {(hasBatches || lastClear.length > 0) && (
+          <div className="flex gap-2 flex-wrap">
+            {lastClear.length > 0 && (
+              <button
+                type="button"
+                onClick={handleRestore}
+                disabled={busy}
+                className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium text-muted hover:text-foreground disabled:opacity-50"
+              >
+                Restore {lastClear.length} cleared batch{lastClear.length === 1 ? '' : 'es'}
+              </button>
+            )}
+            {hasBatches && (
+              <button
+                type="button"
+                onClick={handleClearAll}
+                disabled={busy}
+                className="rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+              >
+                Clear all batches
+              </button>
+            )}
+          </div>
+        )}
         {hasBatches && (
           <div className="flex gap-2">
             <button
@@ -122,6 +205,15 @@ export function ColourPChartModule() {
           </div>
         )}
       </div>
+
+      {notice && (
+        <div className="rounded-lg border border-border bg-primary-soft px-4 py-2 text-sm text-primary-hover">
+          {notice}
+          <button onClick={() => setNotice(null)} className="ml-3 font-medium underline">
+            Dismiss
+          </button>
+        </div>
+      )}
 
       <div className="flex gap-2">
         {(['manual', 'upload'] as const).map((mode) => (

@@ -57,4 +57,19 @@ export class IngestionController {
   deleteColourBatch(@Payload() id: string) {
     return this.ingestionService.deleteColourBatch(id);
   }
+
+  @MessagePattern(INGESTION_PATTERNS.CLEAR_COLOUR_BATCHES)
+  clearColourBatches() {
+    return this.ingestionService.clearColourBatches();
+  }
+
+  @MessagePattern(INGESTION_PATTERNS.LIST_CLEARED_COLOUR_BATCHES)
+  listClearedColourBatches() {
+    return this.ingestionService.listClearedColourBatches();
+  }
+
+  @MessagePattern(INGESTION_PATTERNS.RESTORE_COLOUR_BATCHES)
+  restoreColourBatches(@Payload() payload: { clearedAt?: string }) {
+    return this.ingestionService.restoreColourBatches(payload?.clearedAt);
+  }
 }

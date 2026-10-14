@@ -5,7 +5,14 @@ import {
   Subgroup,
   UpdateSubgroupInput,
 } from '@/types/spc';
-import { ColourBatch, ColourBatchInput, PChartData } from '@/types/pChart';
+import {
+  ClearColourBatchesResult,
+  ClearedColourBatch,
+  ColourBatch,
+  ColourBatchInput,
+  PChartData,
+  RestoreColourBatchesResult,
+} from '@/types/pChart';
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL ?? 'http://localhost:3001';
 
@@ -70,4 +77,21 @@ export function updateColourBatch(id: string, input: ColourBatchInput): Promise<
 
 export function deleteColourBatch(id: string): Promise<{ id: string }> {
   return request<{ id: string }>(`/colour-batches/${id}`, { method: 'DELETE' });
+}
+
+/** Archives every batch; they stay retrievable through the two calls below. */
+export function clearColourBatches(): Promise<ClearColourBatchesResult> {
+  return request<ClearColourBatchesResult>('/colour-batches', { method: 'DELETE' });
+}
+
+export function fetchClearedColourBatches(): Promise<ClearedColourBatch[]> {
+  return request<ClearedColourBatch[]>('/colour-batches/cleared');
+}
+
+/** Restores the most recent clear, or the clear identified by `clearedAt`. */
+export function restoreColourBatches(clearedAt?: string): Promise<RestoreColourBatchesResult> {
+  return request<RestoreColourBatchesResult>('/colour-batches/restore', {
+    method: 'POST',
+    body: JSON.stringify(clearedAt ? { clearedAt } : {}),
+  });
 }

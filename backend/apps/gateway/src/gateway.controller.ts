@@ -46,6 +46,28 @@ export class GatewayController {
     return this.gatewayService.createColourBatch(dto);
   }
 
+  @Get('colour-batches')
+  listColourBatches() {
+    return this.gatewayService.listColourBatches();
+  }
+
+  /** Clears (archives) every batch from the p-chart; retrieve them with the two routes below. */
+  @Delete('colour-batches')
+  clearColourBatches() {
+    return this.gatewayService.clearColourBatches();
+  }
+
+  @Get('colour-batches/cleared')
+  listClearedColourBatches() {
+    return this.gatewayService.listClearedColourBatches();
+  }
+
+  /** Restores the most recent clear, or the one whose `clearedAt` is given in the body. */
+  @Post('colour-batches/restore')
+  restoreColourBatches(@Body() body?: { clearedAt?: string }) {
+    return this.gatewayService.restoreColourBatches(body?.clearedAt);
+  }
+
   @Patch('colour-batches/:id')
   updateColourBatch(@Param('id') id: string, @Body() dto: UpdateColourBatchDto) {
     return this.gatewayService.updateColourBatch(id, dto);

@@ -7,6 +7,22 @@ export interface ColourBatch {
   createdAt: string;
 }
 
+export interface ClearedColourBatch extends ColourBatch {
+  /** When the batch was cleared; batches cleared together share this value. */
+  clearedAt: string;
+}
+
+export interface ClearColourBatchesResult {
+  cleared: number;
+  clearedAt: string | null;
+}
+
+export interface RestoreColourBatchesResult {
+  restored: number;
+  /** Batch labels not restored because an active batch already uses them. */
+  skippedLabels: string[];
+}
+
 export type ColourBatchStatus = 'in-control' | 'out-of-control';
 
 /** One plotted point of the p-chart. All proportions are fractions (0–1). */

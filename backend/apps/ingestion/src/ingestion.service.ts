@@ -1,10 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import {
+  ClearColourBatchesResult,
+  ClearedColourBatch,
   ColourBatch,
   CreateColourBatchDto,
   CreateSubgroupDto,
   PaginatedSubgroups,
+  RestoreColourBatchesResult,
   Subgroup,
   UpdateColourBatchDto,
   UpdateSubgroupDto,
@@ -35,7 +38,11 @@ interface ColourBatchRow {
   samples_inspected: number;
   nonconforming: number;
   created_at: string;
+  cleared_at?: string | null;
 }
+
+const COLOUR_BATCH_COLUMNS =
+  'id, batch_label, production_date, samples_inspected, nonconforming, created_at, cleared_at';
 
 @Injectable()
 export class IngestionService {
@@ -194,7 +201,8 @@ export class IngestionService {
   async listColourBatches(): Promise<ColourBatch[]> {
     const { data, error } = await this.supabase
       .from('colour_batches')
-      .select('id, batch_label, production_date, samples_inspected, nonconforming, created_at')
+      .select(COLOUR_BATCH_COLUMNS)
+      .is('cleared_at', null)
       .order('production_date', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true });
 
@@ -224,6 +232,78 @@ export class IngestionService {
       throw new Error(error.message);
     }
     return { id };
+  }
+
+  /**
+   * Archives every active batch under one shared timestamp. Nothing is
+   * deleted, so the clear can be listed and restored later.
+   */
+  async clearColourBatches(): Promise<ClearColourBatchesResult> {
+    const clearedAt = new Date().toISOString();
+    const { data, error } = await this.supabase
+      .from('colour_batches')
+      .update({ cleared_at: clearedAt })
+      .is('cleared_at', null)
+      .select('id');
+
+    if (error) {
+      throw new Error(error.message);
+    }
+    const cleared = (data ?? []).length;
+    return { cleared, clearedAt: cleared > 0 ? clearedAt : null };
+  }
+
+  /** Cleared batches, most recent clear first, each clear in production order. */
+  async listClearedColourBatches(): Promise<ClearedColourBatch[]> {
+    const { data, error } = await this.supabase
+      .from('colour_batches')
+      .select(COLOUR_BATCH_COLUMNS)
+      .not('cleared_at', 'is', null)
+      .order('cleared_at', { ascending: false })
+      .order('production_date', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+    return ((data ?? []) as ColourBatchRow[]).map((row) => ({
+      ...this.toColourBatch(row),
+      clearedAt: row.cleared_at as string,
+    }));
+  }
+
+  /**
+   * Restores the batches from one clear (the most recent when `clearedAt` is
+   * omitted). A cleared batch whose label is now used by an active batch is
+   * left archived so the chart never shows the same batch number twice.
+   */
+  async restoreColourBatches(clearedAt?: string): Promise<RestoreColourBatchesResult> {
+    const cleared = await this.listClearedColourBatches();
+    const targetTime = clearedAt ? Date.parse(clearedAt) : Date.parse(cleared[0]?.clearedAt ?? '');
+    const target = cleared.filter((b) => Date.parse(b.clearedAt) === targetTime);
+    if (target.length === 0) {
+      return { restored: 0, skippedLabels: [] };
+    }
+
+    const activeLabels = new Set((await this.listColourBatches()).map((b) => b.batchLabel));
+    const toRestore = target.filter((b) => !activeLabels.has(b.batchLabel));
+    const skippedLabels = target
+      .filter((b) => activeLabels.has(b.batchLabel))
+      .map((b) => b.batchLabel);
+
+    if (toRestore.length > 0) {
+      const { error } = await this.supabase
+        .from('colour_batches')
+        .update({ cleared_at: null })
+        .in(
+          'id',
+          toRestore.map((b) => b.id),
+        );
+      if (error) {
+        throw new Error(error.message);
+      }
+    }
+    return { restored: toRestore.length, skippedLabels };
   }
 
   private toColourBatchRow(dto: CreateColourBatchDto) {
