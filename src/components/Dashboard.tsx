@@ -83,6 +83,45 @@ function analyseChart(data: DashboardData, chart: ChartKind, enabled: RuleId[]):
   };
 }
 
+const NAV_ITEMS: { tab: Tab; label: string }[] = [
+  { tab: 'home', label: 'Home' },
+  { tab: 'trends', label: 'Trends & Charts' },
+  { tab: 'records', label: 'Records' },
+  { tab: 'colour', label: 'Tom Brown p-Chart' },
+];
+
+/** Main navigation: a left sidebar on wider screens, a scrollable row on phones. */
+function SideNav({ tab, onSelect }: { tab: Tab; onSelect: (tab: Tab) => void }) {
+  return (
+    <nav
+      aria-label="Dashboard sections"
+      className="md:w-52 md:shrink-0 md:sticky md:top-6 md:self-start"
+    >
+      <ul className="flex gap-2 overflow-x-auto md:flex-col md:overflow-visible rounded-lg md:border md:border-border md:bg-surface md:p-2 md:shadow-sm">
+        {NAV_ITEMS.map((item) => {
+          const active = tab === item.tab;
+          return (
+            <li key={item.tab} className="shrink-0">
+              <button
+                type="button"
+                onClick={() => onSelect(item.tab)}
+                aria-current={active ? 'page' : undefined}
+                className={`w-full whitespace-nowrap rounded-md px-4 py-2 text-left text-sm font-medium transition ${
+                  active
+                    ? 'bg-primary text-white'
+                    : 'bg-surface text-muted border border-border md:border-transparent hover:text-foreground hover:bg-primary-soft'
+                }`}
+              >
+                {item.label}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
 function TabButton({
   active,
   onClick,
@@ -195,177 +234,169 @@ export function Dashboard() {
     <div className="min-h-screen">
       <Header />
 
-      <main className="mx-auto max-w-5xl px-4 py-8 space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex gap-2">
-            <TabButton active={tab === 'home'} onClick={() => setTab('home')}>
-              Home
-            </TabButton>
-            <TabButton active={tab === 'trends'} onClick={() => setTab('trends')}>
-              Trends &amp; Charts
-            </TabButton>
-            <TabButton active={tab === 'records'} onClick={() => setTab('records')}>
-              Records
-            </TabButton>
-            <TabButton active={tab === 'colour'} onClick={() => setTab('colour')}>
-              Tom Brown p-Chart
-            </TabButton>
-          </div>
-          {analysis && tab !== 'colour' && <StatusBadge isStable={analysis.isStable} />}
-        </div>
+      <div className="mx-auto max-w-7xl px-4 py-6 flex flex-col gap-6 md:flex-row">
+        <SideNav tab={tab} onSelect={setTab} />
 
-        {error && tab !== 'colour' && (
-          <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
-            {error}
-            <button onClick={load} className="ml-3 font-medium underline">
-              Retry
-            </button>
-          </div>
-        )}
-
-        {loading && !data && tab !== 'colour' && <p className="text-sm text-muted">Loading…</p>}
-
-        {tab === 'home' && (
-          <>
-            <div className="flex gap-2">
-              <TabButton active={entryMode === 'manual'} onClick={() => setEntryMode('manual')}>
-                Manual entry
-              </TabButton>
-              <TabButton active={entryMode === 'upload'} onClick={() => setEntryMode('upload')}>
-                Upload spreadsheet
-              </TabButton>
-            </div>
-
-            {entryMode === 'manual' ? (
-              <SubgroupForm
-                onCreated={() => {
-                  load();
-                  setTab('trends');
-                }}
-              />
-            ) : (
-              <ExcelUploadForm
-                activeCount={data?.subgroups.length ?? 0}
-                onImported={() => {
-                  load();
-                  setTab('trends');
-                }}
-              />
-            )}
-
-            {data && <SubgroupCalculationCard data={data} />}
-          </>
-        )}
-
-        {tab === 'trends' && data && data.subgroups.length === 0 && !error && (
-          <div className="rounded-lg border border-border bg-surface px-4 py-6 text-center text-sm text-muted">
-            No production data yet — record the first subgroup on the Home tab.
-          </div>
-        )}
-
-        {tab === 'trends' &&
-          data &&
-          data.subgroups.length > 0 &&
-          data.subgroups.length < MIN_SUBGROUPS_FOR_CHARTS && (
-            <div className="rounded-lg border border-border bg-surface px-4 py-6 text-center text-sm text-muted space-y-3">
-              <p>
-                Charts unlock once a baseline of {MIN_SUBGROUPS_FOR_CHARTS} subgroups is
-                collected — control limits calculated from fewer subgroups aren&apos;t
-                statistically reliable.
-              </p>
-              <p className="font-medium text-foreground">
-                {data.subgroups.length} of {MIN_SUBGROUPS_FOR_CHARTS} subgroups recorded
-                ({MIN_SUBGROUPS_FOR_CHARTS - data.subgroups.length} to go)
-              </p>
-              <div className="mx-auto h-2 w-full max-w-xs overflow-hidden rounded-full bg-border">
-                <div
-                  className="h-full rounded-full bg-primary transition-all"
-                  style={{
-                    width: `${Math.min(
-                      100,
-                      (data.subgroups.length / MIN_SUBGROUPS_FOR_CHARTS) * 100,
-                    )}%`,
-                  }}
-                />
-              </div>
+        <main className="min-w-0 flex-1 space-y-6">
+          {analysis && tab !== 'colour' && (
+            <div className="flex justify-end">
+              <StatusBadge isStable={analysis.isStable} />
             </div>
           )}
 
-        {tab === 'trends' && analysis && data && data.subgroups.length >= MIN_SUBGROUPS_FOR_CHARTS && (
-          <>
-            <SummaryPanel summary={data.summary} />
-
-            <RuleToggles
-              enabled={enabledRules}
-              onChange={setRule}
-              note="As in Minitab, the R chart is checked with rules 1–4 only; rules 5–8 apply to the X-bar chart."
-            />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <ControlChart
-                title="X-bar chart — subgroup mean"
-                unit="g"
-                data={analysis.xBar.chartData}
-              />
-              <ControlChart
-                title="R chart — subgroup range"
-                unit="g"
-                data={analysis.r.chartData}
-              />
+          {error && tab !== 'colour' && (
+            <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
+              {error}
+              <button onClick={load} className="ml-3 font-medium underline">
+                Retry
+              </button>
             </div>
+          )}
 
-            <div className="rounded-lg border border-border bg-surface p-4">
-              <h3 className="text-sm font-semibold mb-3">Rule signals</h3>
-              <RuleSignalList
-                groups={[
-                  { chart: 'X-bar', signals: analysis.xBar.signals, points: analysis.points },
-                  { chart: 'R', signals: analysis.r.signals, points: analysis.points },
-                ]}
-              />
+          {loading && !data && tab !== 'colour' && <p className="text-sm text-muted">Loading…</p>}
+
+          {tab === 'home' && (
+            <>
+              <div className="flex gap-2">
+                <TabButton active={entryMode === 'manual'} onClick={() => setEntryMode('manual')}>
+                  Manual entry
+                </TabButton>
+                <TabButton active={entryMode === 'upload'} onClick={() => setEntryMode('upload')}>
+                  Upload spreadsheet
+                </TabButton>
+              </div>
+
+              {entryMode === 'manual' ? (
+                <SubgroupForm
+                  onCreated={() => {
+                    load();
+                    setTab('trends');
+                  }}
+                />
+              ) : (
+                <ExcelUploadForm
+                  activeCount={data?.subgroups.length ?? 0}
+                  onImported={() => {
+                    load();
+                    setTab('trends');
+                  }}
+                />
+              )}
+
+              {data && <SubgroupCalculationCard data={data} />}
+            </>
+          )}
+
+          {tab === 'trends' && data && data.subgroups.length === 0 && !error && (
+            <div className="rounded-lg border border-border bg-surface px-4 py-6 text-center text-sm text-muted">
+              No production data yet — record the first subgroup on the Home tab.
             </div>
-          </>
-        )}
+          )}
 
-        {tab === 'colour' && <ColourPChartModule />}
-
-        {tab === 'records' && (
-          <>
-            {recordsError && (
-              <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
-                {recordsError}
-                <button
-                  onClick={() => loadRecords(recordsPage)}
-                  className="ml-3 font-medium underline"
-                >
-                  Retry
-                </button>
+          {tab === 'trends' &&
+            data &&
+            data.subgroups.length > 0 &&
+            data.subgroups.length < MIN_SUBGROUPS_FOR_CHARTS && (
+              <div className="rounded-lg border border-border bg-surface px-4 py-6 text-center text-sm text-muted space-y-3">
+                <p>
+                  Charts unlock once a baseline of {MIN_SUBGROUPS_FOR_CHARTS} subgroups is
+                  collected — control limits calculated from fewer subgroups aren&apos;t
+                  statistically reliable.
+                </p>
+                <p className="font-medium text-foreground">
+                  {data.subgroups.length} of {MIN_SUBGROUPS_FOR_CHARTS} subgroups recorded
+                  ({MIN_SUBGROUPS_FOR_CHARTS - data.subgroups.length} to go)
+                </p>
+                <div className="mx-auto h-2 w-full max-w-xs overflow-hidden rounded-full bg-border">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        (data.subgroups.length / MIN_SUBGROUPS_FOR_CHARTS) * 100,
+                      )}%`,
+                    }}
+                  />
+                </div>
               </div>
             )}
 
-            {recordsLoading && !records && <p className="text-sm text-muted">Loading…</p>}
+          {tab === 'trends' && analysis && data && data.subgroups.length >= MIN_SUBGROUPS_FOR_CHARTS && (
+            <>
+              <SummaryPanel summary={data.summary} />
 
-            {records && (
-              <>
-                <SubgroupEditor subgroups={records.subgroups} onUpdated={handleRecordsMutated} />
-                <SubgroupList subgroups={records.subgroups} onDeleted={handleRecordsMutated} />
-                <Pagination
-                  page={records.page}
-                  pageSize={records.pageSize}
-                  total={records.total}
-                  onPageChange={setRecordsPage}
-                  disabled={recordsLoading}
+              <RuleToggles
+                enabled={enabledRules}
+                onChange={setRule}
+                note="As in Minitab, the R chart is checked with rules 1–4 only; rules 5–8 apply to the X-bar chart."
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <ControlChart
+                  title="X-bar chart — subgroup mean"
+                  unit="g"
+                  data={analysis.xBar.chartData}
                 />
-              </>
-            )}
+                <ControlChart
+                  title="R chart — subgroup range"
+                  unit="g"
+                  data={analysis.r.chartData}
+                />
+              </div>
 
-            <PreviousUploads
-              activeCount={data?.subgroups.length ?? 0}
-              refreshKey={data}
-              onRestored={handleRecordsMutated}
-            />
-          </>
-        )}
-      </main>
+              <div className="rounded-lg border border-border bg-surface p-4">
+                <h3 className="text-sm font-semibold mb-3">Rule signals</h3>
+                <RuleSignalList
+                  groups={[
+                    { chart: 'X-bar', signals: analysis.xBar.signals, points: analysis.points },
+                    { chart: 'R', signals: analysis.r.signals, points: analysis.points },
+                  ]}
+                />
+              </div>
+            </>
+          )}
+
+          {tab === 'colour' && <ColourPChartModule />}
+
+          {tab === 'records' && (
+            <>
+              {recordsError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm">
+                  {recordsError}
+                  <button
+                    onClick={() => loadRecords(recordsPage)}
+                    className="ml-3 font-medium underline"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+
+              {recordsLoading && !records && <p className="text-sm text-muted">Loading…</p>}
+
+              {records && (
+                <>
+                  <SubgroupEditor subgroups={records.subgroups} onUpdated={handleRecordsMutated} />
+                  <SubgroupList subgroups={records.subgroups} onDeleted={handleRecordsMutated} />
+                  <Pagination
+                    page={records.page}
+                    pageSize={records.pageSize}
+                    total={records.total}
+                    onPageChange={setRecordsPage}
+                    disabled={recordsLoading}
+                  />
+                </>
+              )}
+
+              <PreviousUploads
+                activeCount={data?.subgroups.length ?? 0}
+                refreshKey={data}
+                onRestored={handleRecordsMutated}
+              />
+            </>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
