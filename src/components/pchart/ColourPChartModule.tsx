@@ -8,11 +8,9 @@ import {
   restoreColourBatches,
 } from '@/lib/api';
 import { exportPChartCsv, exportPChartXlsx, formatBatchDate, INVESTIGATE_MESSAGE } from '@/lib/pChartFormat';
-import { detectSignals, RuleId, RuleSignal, rulesByPoint } from '@/lib/nelsonRules';
-import { useEnabledRules } from '@/lib/useEnabledRules';
+import { detectSignals, P_CHART_RULES, RuleId, RuleSignal, rulesByPoint } from '@/lib/nelsonRules';
 import { ClearedColourBatch, PChartData } from '@/types/pChart';
 import { RuleSignalList } from '../RuleSignalList';
-import { RuleToggles } from '../RuleToggles';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { ColourBatchForm } from './ColourBatchForm';
 import { ColourBatchUploadForm } from './ColourBatchUploadForm';
@@ -32,14 +30,14 @@ interface RuleAnalysis {
 }
 
 /**
- * The backend only flags points beyond the 3σ limits (rule 1). Re-derive batch
- * status from every enabled Nelson rule so the table, summary and exports all
- * agree with the chart.
+ * The p-chart uses rule 1 only (a batch beyond its 3σ limits), so batch status
+ * matches the backend's; the signals still drive the chart highlighting and
+ * the signal list.
  */
-function analyse(raw: PChartData, enabled: RuleId[]): RuleAnalysis {
+function analyse(raw: PChartData): RuleAnalysis {
   const signals = detectSignals(
     raw.points.map((p) => ({ value: p.proportion, cl: p.cl, sigma: p.sigma, ucl: p.ucl, lcl: p.lcl })),
-    enabled,
+    P_CHART_RULES,
   );
   const rules = rulesByPoint(signals, raw.points.length);
   const points = raw.points.map((p, i) => ({
@@ -71,7 +69,6 @@ export function ColourPChartModule() {
   const [busy, setBusy] = useState(false);
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [enabledRules, setRule] = useEnabledRules();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -144,8 +141,8 @@ export function ColourPChartModule() {
   }
 
   const analysis = useMemo(
-    () => (rawData ? analyse(rawData, enabledRules) : null),
-    [rawData, enabledRules],
+    () => (rawData ? analyse(rawData) : null),
+    [rawData],
   );
   const data = analysis?.data ?? null;
   const hasBatches = !!data && data.points.length > 0;
@@ -157,7 +154,7 @@ export function ColourPChartModule() {
         title={`Clear all ${activeCount} batch${activeCount === 1 ? '' : 'es'}?`}
         message={
           <p>
-            Every batch will be removed from the p-chart, the batch table and the rule signals.
+            Every batch will be removed from the p-chart, the batch table and the signal list.
             They are <strong className="text-foreground">archived, not deleted</strong> — use{' '}
             <em>Restore cleared batches</em> to bring them back.
           </p>
@@ -279,13 +276,13 @@ export function ColourPChartModule() {
             >
               {data.summary.isStable ? (
                 <span className="font-semibold">
-                  No enabled rule is triggered — no special-cause signals.
+                  All batches are within the control limits — no points outside limits.
                 </span>
               ) : (
                 <p className="font-semibold">
                   {data.summary.outOfControlCount} batch
-                  {data.summary.outOfControlCount === 1 ? '' : 'es'} involved in rule signals —
-                  investigate the process. {INVESTIGATE_MESSAGE}
+                  {data.summary.outOfControlCount === 1 ? '' : 'es'} outside the control limits
+                  — investigate the process. {INVESTIGATE_MESSAGE}
                 </p>
               )}
             </div>
@@ -300,10 +297,13 @@ export function ColourPChartModule() {
 
           {hasBatches && analysis && (
             <>
-              <RuleToggles enabled={enabledRules} onChange={setRule} />
               <PChart points={data.points} rules={analysis.rules} />
               <div className="rounded-lg border border-border bg-surface p-4">
-                <h3 className="text-sm font-semibold mb-3">Rule signals</h3>
+                <h3 className="text-sm font-semibold">Rule signals</h3>
+                <p className="text-xs text-muted mb-3">
+                  The colour p-chart is checked with rule 1 only: a batch above the UCL or below
+                  the LCL.
+                </p>
                 <RuleSignalList
                   groups={[
                     {

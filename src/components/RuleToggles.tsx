@@ -5,9 +5,11 @@ import { ALL_RULES, RULE_DESCRIPTIONS, RuleId } from '@/lib/nelsonRules';
 export function RuleToggles({
   enabled,
   onChange,
+  note,
 }: {
   enabled: RuleId[];
   onChange: (rule: RuleId, on: boolean) => void;
+  note?: string;
 }) {
   return (
     <details className="rounded-lg border border-border bg-surface p-4">
@@ -32,6 +34,7 @@ export function RuleToggles({
           </label>
         ))}
       </div>
+      {note && <p className="mt-3 text-xs text-muted">{note}</p>}
     </details>
   );
 }

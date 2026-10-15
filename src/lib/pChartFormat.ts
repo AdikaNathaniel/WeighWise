@@ -86,9 +86,9 @@ export function exportPChartXlsx(data: PChartData): void {
     ['Total samples inspected', s.totalSamples],
     ['Total nonconforming', s.totalNonconforming],
     ['Overall proportion nonconforming (p̄)', s.overallProportion ?? ''],
-    ['Batches in rule signals', s.outOfControlCount],
-    ['Overall status', s.isStable ? 'NO RULE SIGNALS' : 'INVESTIGATE PROCESS'],
-    ['Control-limit basis', '3-sigma, with the enabled Nelson rules'],
+    ['Out-of-control batches', s.outOfControlCount],
+    ['Overall status', s.isStable ? 'NO POINTS OUTSIDE LIMITS' : 'INVESTIGATE PROCESS'],
+    ['Control-limit basis', '3-sigma (rule 1: point outside the limits)'],
     ['Exported', new Date().toLocaleString()],
   ]);
   if (summarySheet['B6'] && typeof summarySheet['B6'].v === 'number') summarySheet['B6'].z = '0.00%';

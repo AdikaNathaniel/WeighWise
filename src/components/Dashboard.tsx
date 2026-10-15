@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchDashboard, fetchSubgroupsPage } from '@/lib/api';
-import { detectSignals, RuleId, RulePoint, RuleSignal, rulesByPoint } from '@/lib/nelsonRules';
+import {
+  detectSignals,
+  RANGE_CHART_RULES,
+  RuleId,
+  RulePoint,
+  RuleSignal,
+  rulesByPoint,
+} from '@/lib/nelsonRules';
 import { useEnabledRules } from '@/lib/useEnabledRules';
 import { formatBatchDate } from '@/lib/pChartFormat';
 import { DashboardData, PaginatedSubgroups } from '@/types/spc';
@@ -162,7 +169,11 @@ export function Dashboard() {
   const analysis = useMemo(() => {
     if (!data) return null;
     const xBar = analyseChart(data, 'x-bar', enabledRules);
-    const r = analyseChart(data, 'r', enabledRules);
+    const r = analyseChart(
+      data,
+      'r',
+      enabledRules.filter((rule) => RANGE_CHART_RULES.includes(rule)),
+    );
     const points: SignalPointInfo[] = data.subgroups.map((s, i) => ({
       batch: `#${i + 1}`,
       date: formatBatchDate(s.productionDate),
@@ -283,7 +294,11 @@ export function Dashboard() {
           <>
             <SummaryPanel summary={data.summary} />
 
-            <RuleToggles enabled={enabledRules} onChange={setRule} />
+            <RuleToggles
+              enabled={enabledRules}
+              onChange={setRule}
+              note="As in Minitab, the R chart is checked with rules 1–4 only; rules 5–8 apply to the X-bar chart."
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <ControlChart

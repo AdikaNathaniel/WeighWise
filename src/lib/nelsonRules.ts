@@ -11,6 +11,16 @@ export type RuleId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 export const ALL_RULES: RuleId[] = [1, 2, 3, 4, 5, 6, 7, 8];
 
+/**
+ * Rules applied to range (R) charts. As in Minitab, the zone tests 5–8 are
+ * not run there because the R chart's σ-zones are not symmetric about its
+ * centre line.
+ */
+export const RANGE_CHART_RULES: RuleId[] = [1, 2, 3, 4];
+
+/** The Tom Brown colour p-chart is judged on rule 1 (a point beyond the 3σ limits) only. */
+export const P_CHART_RULES: RuleId[] = [1];
+
 export const RULE_DESCRIPTIONS: Record<RuleId, { title: string; detail: string }> = {
   1: { title: 'One point beyond 3σ', detail: 'A point is above the UCL or below the LCL.' },
   2: {
@@ -19,7 +29,7 @@ export const RULE_DESCRIPTIONS: Record<RuleId, { title: string; detail: string }
   },
   3: {
     title: 'Six-point trend',
-    detail: 'Six consecutive points steadily increase or steadily decrease.',
+    detail: 'Six increases in a row or six decreases in a row (seven points).',
   },
   4: {
     title: 'Fourteen alternating',
@@ -79,7 +89,9 @@ export interface RuleSignal {
 
 type Side = 1 | -1 | 0;
 
-const RUN_LENGTH: Record<2 | 3 | 4 | 7 | 8, number> = { 2: 9, 3: 6, 4: 14, 7: 15, 8: 8 };
+// Minimum points in a run. Rule 3 follows Minitab's Test 3, where K = 6 counts
+// consecutive increases (or decreases), so the trend spans K + 1 = 7 points.
+const RUN_LENGTH: Record<2 | 3 | 4 | 7 | 8, number> = { 2: 9, 3: 7, 4: 14, 7: 15, 8: 8 };
 
 function range(start: number, endInclusive: number): number[] {
   return Array.from({ length: endInclusive - start + 1 }, (_, i) => start + i);

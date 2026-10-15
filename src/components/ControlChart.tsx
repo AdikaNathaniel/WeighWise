@@ -10,6 +10,7 @@ import {
   YAxis,
 } from 'recharts';
 import { RuleId } from '@/lib/nelsonRules';
+import { fitDomain } from '@/lib/chartDomain';
 
 export interface ControlChartPoint {
   label: string;
@@ -106,6 +107,9 @@ export function ControlChart({
     };
   });
 
+  // Fit the axis to the points and limit lines; weights and ranges are never negative.
+  const domain = fitDomain(rows.flatMap((r) => [r.value, r.ucl, r.lcl]), { floor: 0 });
+
   return (
     <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
       <h3 className="text-sm font-semibold text-foreground mb-3">{title}</h3>
@@ -114,7 +118,7 @@ export function ControlChart({
           <LineChart data={rows} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
             <XAxis dataKey="label" fontSize={12} />
-            <YAxis fontSize={12} unit={unit} width={56} />
+            <YAxis fontSize={12} unit={unit} width={64} domain={domain} allowDataOverflow />
             <Tooltip content={<ChartTooltip unit={unit} />} />
             <ZoneLine dataKey="plus2" />
             <ZoneLine dataKey="plus1" />

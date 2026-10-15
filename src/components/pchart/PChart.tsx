@@ -13,6 +13,7 @@ import {
 import { PChartPoint } from '@/types/pChart';
 import { formatBatchDate } from '@/lib/pChartFormat';
 import { RuleId } from '@/lib/nelsonRules';
+import { fitDomain } from '@/lib/chartDomain';
 
 // Plotted values are percentages (0–100) so the axis and tooltip read as %.
 interface ChartRow {
@@ -91,7 +92,16 @@ export function PChart({ points, rules }: { points: PChartPoint[]; rules: RuleId
           <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
             <XAxis dataKey="label" fontSize={12} />
-            <YAxis fontSize={12} unit="%" width={52} domain={[0, 'auto']} />
+            <YAxis
+              fontSize={12}
+              unit="%"
+              width={52}
+              domain={fitDomain(
+                data.flatMap((r) => [r.p, r.ucl, r.lcl]),
+                { floor: 0, ceiling: 100 },
+              )}
+              allowDataOverflow
+            />
             <Tooltip content={<ChartTooltip />} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             <Line
