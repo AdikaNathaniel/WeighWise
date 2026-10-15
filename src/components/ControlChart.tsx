@@ -118,7 +118,7 @@ export function ControlChart({
       <h3 className="text-sm font-semibold text-foreground mb-3">{title}</h3>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={rows} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+          <LineChart data={rows} margin={{ top: 8, right: 24, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
             {/* Only 5 dates are labelled to avoid crowding; hover a point for its date. */}
             <XAxis
@@ -126,6 +126,8 @@ export function ControlChart({
               fontSize={12}
               ticks={evenTicks(rows.length)}
               interval={0}
+              // Room for the first/last labels, which are centred on the end points.
+              padding={{ left: 16, right: 16 }}
               tickFormatter={(i: number) => rows[i]?.label ?? ''}
             />
             <YAxis fontSize={12} unit={unit} width={64} domain={domain} allowDataOverflow />
