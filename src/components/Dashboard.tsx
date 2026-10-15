@@ -175,9 +175,8 @@ export function Dashboard() {
       'r',
       enabledRules.filter((rule) => RANGE_CHART_RULES.includes(rule)),
     );
-    const points: SignalPointInfo[] = data.subgroups.map((s, i) => ({
-      batch: `#${i + 1}`,
-      date: formatBatchDate(s.productionDate),
+    const points: SignalPointInfo[] = data.subgroups.map((s) => ({
+      label: formatBatchDate(s.productionDate),
     }));
     return {
       xBar,

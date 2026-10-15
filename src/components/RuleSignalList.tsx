@@ -1,9 +1,8 @@
-import { DIRECTION_LABELS, RULE_DESCRIPTIONS, RuleSignal } from '@/lib/nelsonRules';
+import { ALL_RULES, RULE_DESCRIPTIONS, RuleSignal } from '@/lib/nelsonRules';
 
 export interface SignalPointInfo {
-  /** Batch / subgroup number shown to the user. */
-  batch: string;
-  date: string;
+  /** How the point is named in the list, e.g. a production date or "Batch 4 (22 Aug 2026)". */
+  label: string;
 }
 
 export interface SignalGroup {
@@ -13,13 +12,42 @@ export interface SignalGroup {
   points: SignalPointInfo[];
 }
 
-function span(values: string[]): string {
-  return values.length === 1 ? values[0] : `${values[0]} – ${values[values.length - 1]}`;
+interface Row {
+  chart?: string;
+  rule: (typeof ALL_RULES)[number];
+  labels: string[];
 }
 
-export function RuleSignalList({ groups }: { groups: SignalGroup[] }) {
+/**
+ * One row per chart and rule, listing the points where the test fails — the
+ * same layout as a Minitab "tests for special causes" report. The chart still
+ * highlights every point of each sequence.
+ */
+function toRows(groups: SignalGroup[]): Row[] {
+  return groups.flatMap((group) =>
+    ALL_RULES.flatMap((rule) => {
+      const flagged = new Set(
+        group.signals.filter((s) => s.rule === rule).flatMap((s) => s.flagged),
+      );
+      if (flagged.size === 0) return [];
+      const labels = [...flagged]
+        .sort((a, b) => a - b)
+        .map((i) => group.points[i]?.label)
+        .filter((l): l is string => Boolean(l));
+      return [{ chart: group.chart, rule, labels }];
+    }),
+  );
+}
+
+export function RuleSignalList({
+  groups,
+  pointHeading = 'Dates flagged',
+}: {
+  groups: SignalGroup[];
+  pointHeading?: string;
+}) {
   const showChart = groups.some((g) => g.chart);
-  const rows = groups.flatMap((g) => g.signals.map((signal) => ({ group: g, signal })));
+  const rows = toRows(groups);
 
   if (rows.length === 0) {
     return (
@@ -34,38 +62,42 @@ export function RuleSignalList({ groups }: { groups: SignalGroup[] }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-xs text-muted border-b border-border">
-            <th className="py-1.5 pr-3">Rule</th>
             {showChart && <th className="py-1.5 pr-3">Chart</th>}
-            <th className="py-1.5 pr-3">Batch no.</th>
-            <th className="py-1.5 pr-3">Production dates</th>
-            <th className="py-1.5 pr-3">Signal</th>
+            <th className="py-1.5 pr-3">Test</th>
+            <th className="py-1.5 pr-3">Reason</th>
+            <th className="py-1.5 pr-3">{pointHeading}</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map(({ group, signal }, i) => {
-            const pts = signal.indices.map((idx) => group.points[idx]).filter(Boolean);
-            return (
-              <tr key={i} className="border-b border-border last:border-0 align-top">
-                <td className="py-1.5 pr-3">
-                  <span className="font-semibold text-red-700">Rule {signal.rule}</span>
-                  <span className="block text-xs text-muted">
-                    {RULE_DESCRIPTIONS[signal.rule].title}
-                  </span>
-                </td>
-                {showChart && <td className="py-1.5 pr-3">{group.chart}</td>}
-                <td className="py-1.5 pr-3">
-                  {span(pts.map((p) => p.batch))}
-                  {pts.length > 1 && (
-                    <span className="block text-xs text-muted">{pts.length} points</span>
-                  )}
-                </td>
-                <td className="py-1.5 pr-3">{span(pts.map((p) => p.date))}</td>
-                <td className="py-1.5 pr-3">{DIRECTION_LABELS[signal.direction]}</td>
-              </tr>
-            );
-          })}
+          {rows.map((row) => (
+            <tr
+              key={`${row.chart ?? ''}-${row.rule}`}
+              className="border-b border-border last:border-0 align-top"
+            >
+              {showChart && <td className="py-1.5 pr-3 whitespace-nowrap">{row.chart}</td>}
+              <td className="py-1.5 pr-3 font-semibold text-red-700 whitespace-nowrap">
+                Rule {row.rule}
+              </td>
+              <td className="py-1.5 pr-3">
+                <span className="font-medium text-foreground">
+                  {RULE_DESCRIPTIONS[row.rule].title}
+                </span>
+                <span className="block text-xs text-muted">{RULE_DESCRIPTIONS[row.rule].detail}</span>
+              </td>
+              <td className="py-1.5 pr-3">
+                {row.labels.join(', ')}
+                <span className="block text-xs text-muted">
+                  {row.labels.length} point{row.labels.length === 1 ? '' : 's'}
+                </span>
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
+      <p className="mt-2 text-xs text-muted">
+        Listed points are where each test fails, as reported by Minitab. On the chart, every
+        point in the triggering sequence is highlighted.
+      </p>
     </div>
   );
 }

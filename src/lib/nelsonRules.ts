@@ -84,8 +84,16 @@ export interface RuleSignal {
   rule: RuleId;
   /** Indices (into the input array) of every point that forms the signal. */
   indices: number[];
+  /**
+   * The points Minitab reports for this signal — where the test fails: the
+   * point itself (rule 1), the last point of the window (rules 5, 6), or every
+   * point from the K-th in the run onward (run rules 2, 3, 4, 7, 8).
+   */
+  flagged: number[];
   direction: SignalDirection;
 }
+
+type DetectedSignal = Omit<RuleSignal, 'flagged'>;
 
 type Side = 1 | -1 | 0;
 
@@ -125,8 +133,8 @@ function maximalRuns(
   return runs;
 }
 
-function rule1(points: RulePoint[]): RuleSignal[] {
-  const signals: RuleSignal[] = [];
+function rule1(points: RulePoint[]): DetectedSignal[] {
+  const signals: DetectedSignal[] = [];
   points.forEach((p, i) => {
     if (p.value > p.ucl) signals.push({ rule: 1, indices: [i], direction: 'above' });
     else if (p.value < p.lcl) signals.push({ rule: 1, indices: [i], direction: 'below' });
@@ -134,7 +142,7 @@ function rule1(points: RulePoint[]): RuleSignal[] {
   return signals;
 }
 
-function rule2(points: RulePoint[]): RuleSignal[] {
+function rule2(points: RulePoint[]): DetectedSignal[] {
   const side = points.map((p) => sideBeyond(p, 0));
   return maximalRuns(
     points.length,
@@ -148,8 +156,8 @@ function rule2(points: RulePoint[]): RuleSignal[] {
   }));
 }
 
-function rule3(points: RulePoint[]): RuleSignal[] {
-  const signals: RuleSignal[] = [];
+function rule3(points: RulePoint[]): DetectedSignal[] {
+  const signals: DetectedSignal[] = [];
   for (const dir of [1, -1] as const) {
     const runs = maximalRuns(
       points.length,
@@ -164,10 +172,10 @@ function rule3(points: RulePoint[]): RuleSignal[] {
   return signals.sort((a, b) => a.indices[0] - b.indices[0]);
 }
 
-function rule4(points: RulePoint[]): RuleSignal[] {
+function rule4(points: RulePoint[]): DetectedSignal[] {
   // step[i] is the direction of the move from point i-1 to point i.
   const step = points.map((p, i) => (i === 0 ? 0 : Math.sign(p.value - points[i - 1].value)));
-  const signals: RuleSignal[] = [];
+  const signals: DetectedSignal[] = [];
   let start = 0;
   for (let i = 1; i <= points.length; i++) {
     const moves = i < points.length && step[i] !== 0;
@@ -181,20 +189,25 @@ function rule4(points: RulePoint[]): RuleSignal[] {
   return signals;
 }
 
-/** "k of m beyond z·σ on the same side" — reported once per triggering window. */
+/**
+ * "k of m beyond z·σ on the same side". As in Minitab, the test fails at a
+ * point only if that point is itself beyond z·σ, so a window is reported only
+ * when its last point is one of the points beyond.
+ */
 function windowRule(
   points: RulePoint[],
   rule: 5 | 6,
   windowSize: number,
   minCount: number,
   zSigma: number,
-): RuleSignal[] {
+): DetectedSignal[] {
   const side = points.map((p) => sideBeyond(p, zSigma));
-  const signals: RuleSignal[] = [];
+  const signals: DetectedSignal[] = [];
   for (let s = 0; s + windowSize <= points.length; s++) {
     const window = side.slice(s, s + windowSize);
     for (const dir of [1, -1] as const) {
-      if (window.filter((v) => v === dir).length >= minCount) {
+      const last = window[window.length - 1];
+      if (last === dir && window.filter((v) => v === dir).length >= minCount) {
         signals.push({
           rule,
           indices: range(s, s + windowSize - 1),
@@ -206,7 +219,7 @@ function windowRule(
   return signals;
 }
 
-function rule7(points: RulePoint[]): RuleSignal[] {
+function rule7(points: RulePoint[]): DetectedSignal[] {
   const within = points.map((p) => sideBeyond(p, 1) === 0 && p.sigma > 0);
   return maximalRuns(
     points.length,
@@ -216,7 +229,7 @@ function rule7(points: RulePoint[]): RuleSignal[] {
   ).map(([s, e]) => ({ rule: 7, indices: range(s, e), direction: 'within' }));
 }
 
-function rule8(points: RulePoint[]): RuleSignal[] {
+function rule8(points: RulePoint[]): DetectedSignal[] {
   const side = points.map((p) => sideBeyond(p, 1));
   return maximalRuns(
     points.length,
@@ -231,7 +244,7 @@ function rule8(points: RulePoint[]): RuleSignal[] {
   });
 }
 
-const DETECTORS: Record<RuleId, (points: RulePoint[]) => RuleSignal[]> = {
+const DETECTORS: Record<RuleId, (points: RulePoint[]) => DetectedSignal[]> = {
   1: rule1,
   2: rule2,
   3: rule3,
@@ -251,7 +264,14 @@ export function detectSignals(points: RulePoint[], enabled: Iterable<RuleId>): R
   const enabledSet = new Set(enabled);
   return ALL_RULES.filter((r) => enabledSet.has(r))
     .flatMap((r) => DETECTORS[r](points))
+    .map((signal) => ({ ...signal, flagged: flaggedIndices(signal) }))
     .sort((a, b) => a.indices[0] - b.indices[0] || a.rule - b.rule);
+}
+
+function flaggedIndices({ rule, indices }: DetectedSignal): number[] {
+  if (rule === 1) return indices;
+  if (rule === 5 || rule === 6) return indices.slice(-1);
+  return indices.slice(RUN_LENGTH[rule] - 1);
 }
 
 /** Maps each point index to the sorted list of rules whose signals include it. */

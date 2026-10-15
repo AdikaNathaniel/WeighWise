@@ -305,12 +305,14 @@ export function ColourPChartModule() {
                   the LCL.
                 </p>
                 <RuleSignalList
+                  pointHeading="Batches flagged"
                   groups={[
                     {
                       signals: analysis.signals,
                       points: data.points.map((p) => ({
-                        batch: p.batchLabel,
-                        date: formatBatchDate(p.productionDate),
+                        label: p.productionDate
+                          ? `Batch ${p.batchLabel} (${formatBatchDate(p.productionDate)})`
+                          : `Batch ${p.batchLabel}`,
                       })),
                     },
                   ]}
