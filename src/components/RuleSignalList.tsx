@@ -85,8 +85,18 @@ export function RuleSignalList({
                 <span className="block text-xs text-muted">{RULE_DESCRIPTIONS[row.rule].detail}</span>
               </td>
               <td className="py-1.5 pr-3">
-                {row.labels.join(', ')}
-                <span className="block text-xs text-muted">
+                {/* One tag per point — dates contain commas, so a comma-joined list is ambiguous. */}
+                <ul className="flex flex-wrap gap-1.5">
+                  {row.labels.map((label, i) => (
+                    <li
+                      key={i}
+                      className="rounded-md border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-800 whitespace-nowrap"
+                    >
+                      {label}
+                    </li>
+                  ))}
+                </ul>
+                <span className="mt-1 block text-xs text-muted">
                   {row.labels.length} point{row.labels.length === 1 ? '' : 's'}
                 </span>
               </td>
