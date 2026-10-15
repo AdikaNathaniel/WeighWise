@@ -13,10 +13,12 @@ import {
 import { PChartPoint } from '@/types/pChart';
 import { formatBatchDate } from '@/lib/pChartFormat';
 import { RuleId } from '@/lib/nelsonRules';
-import { fitDomain } from '@/lib/chartDomain';
+import { evenTicks, fitDomain } from '@/lib/chartDomain';
 
 // Plotted values are percentages (0–100) so the axis and tooltip read as %.
 interface ChartRow {
+  /** Position in the series — the X key, so repeated batch labels stay distinct. */
+  idx: number;
   label: string;
   date: string | null;
   p: number;
@@ -71,6 +73,7 @@ function ChartTooltip({
 
 export function PChart({ points, rules }: { points: PChartPoint[]; rules: RuleId[][] }) {
   const data: ChartRow[] = points.map((p, i) => ({
+    idx: i,
     label: p.batchLabel,
     date: p.productionDate,
     p: toPercent(p.proportion),
@@ -91,7 +94,14 @@ export function PChart({ points, rules }: { points: PChartPoint[]; rules: RuleId
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-            <XAxis dataKey="label" fontSize={12} />
+            {/* Only 5 batches are labelled to avoid crowding; hover a point for its details. */}
+            <XAxis
+              dataKey="idx"
+              fontSize={12}
+              ticks={evenTicks(data.length)}
+              interval={0}
+              tickFormatter={(i: number) => data[i]?.label ?? ''}
+            />
             <YAxis
               fontSize={12}
               unit="%"

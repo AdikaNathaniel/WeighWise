@@ -25,3 +25,14 @@ export function fitDomain(
   if (ceiling !== undefined) hi = Math.min(ceiling, hi);
   return [lo, hi];
 }
+
+/**
+ * Indices of at most `max` evenly spaced X-axis ticks for `count` points,
+ * always including the first and last point. Every other point is still
+ * identified by its tooltip.
+ */
+export function evenTicks(count: number, max = 5): number[] {
+  if (count <= max) return Array.from({ length: count }, (_, i) => i);
+  const step = (count - 1) / (max - 1);
+  return Array.from({ length: max }, (_, i) => Math.round(i * step));
+}

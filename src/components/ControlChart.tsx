@@ -10,7 +10,7 @@ import {
   YAxis,
 } from 'recharts';
 import { RuleId } from '@/lib/nelsonRules';
-import { fitDomain } from '@/lib/chartDomain';
+import { evenTicks, fitDomain } from '@/lib/chartDomain';
 
 export interface ControlChartPoint {
   label: string;
@@ -24,6 +24,8 @@ export interface ControlChartPoint {
 
 // Zone boundaries (±1σ, ±2σ) are derived from the 3σ limits: σ = (UCL − CL) / 3.
 interface ChartRow extends ControlChartPoint {
+  /** Position in the series — the X key, so repeated date labels stay distinct. */
+  idx: number;
   plus1: number;
   plus2: number;
   minus1: number;
@@ -96,10 +98,11 @@ export function ControlChart({
   data: ControlChartPoint[];
 }) {
   // Lower zones are clamped to the LCL so the R chart (LCL = 0) never plots below zero.
-  const rows: ChartRow[] = data.map((p) => {
+  const rows: ChartRow[] = data.map((p, idx) => {
     const sigma = (p.ucl - p.cl) / 3;
     return {
       ...p,
+      idx,
       plus1: p.cl + sigma,
       plus2: p.cl + 2 * sigma,
       minus1: Math.max(p.lcl, p.cl - sigma),
@@ -117,7 +120,14 @@ export function ControlChart({
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={rows} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-            <XAxis dataKey="label" fontSize={12} />
+            {/* Only 5 dates are labelled to avoid crowding; hover a point for its date. */}
+            <XAxis
+              dataKey="idx"
+              fontSize={12}
+              ticks={evenTicks(rows.length)}
+              interval={0}
+              tickFormatter={(i: number) => rows[i]?.label ?? ''}
+            />
             <YAxis fontSize={12} unit={unit} width={64} domain={domain} allowDataOverflow />
             <Tooltip content={<ChartTooltip unit={unit} />} />
             <ZoneLine dataKey="plus2" />
