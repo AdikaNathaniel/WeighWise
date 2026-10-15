@@ -7,6 +7,10 @@ import {
   ALERTING_PATTERNS,
   CreateSubgroupDto,
   UpdateSubgroupDto,
+  ImportSubgroupsDto,
+  ImportSubgroupsResult,
+  ArchivedSubgroupSet,
+  RestoreSubgroupsResult,
   Subgroup,
   SpcSummary,
   ControlStatus,
@@ -51,6 +55,22 @@ export class GatewayService {
 
   deleteSubgroup(id: string): Promise<{ id: string }> {
     return firstValueFrom(this.ingestionClient.send(INGESTION_PATTERNS.DELETE_SUBGROUP, id));
+  }
+
+  importSubgroups(dto: ImportSubgroupsDto): Promise<ImportSubgroupsResult> {
+    return firstValueFrom(this.ingestionClient.send(INGESTION_PATTERNS.IMPORT_SUBGROUPS, dto));
+  }
+
+  listArchivedSubgroups(): Promise<ArchivedSubgroupSet[]> {
+    return firstValueFrom(
+      this.ingestionClient.send(INGESTION_PATTERNS.LIST_ARCHIVED_SUBGROUPS, {}),
+    );
+  }
+
+  restoreSubgroups(archivedAt: string): Promise<RestoreSubgroupsResult> {
+    return firstValueFrom(
+      this.ingestionClient.send(INGESTION_PATTERNS.RESTORE_SUBGROUPS, { archivedAt }),
+    );
   }
 
   async getDashboard(): Promise<DashboardData> {

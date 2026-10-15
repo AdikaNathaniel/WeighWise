@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestj
 import {
   CreateColourBatchDto,
   CreateSubgroupDto,
+  ImportSubgroupsDto,
   UpdateColourBatchDto,
   UpdateSubgroupDto,
 } from '@app/common';
@@ -19,6 +20,24 @@ export class GatewayController {
   @Get('subgroups')
   listSubgroups() {
     return this.gatewayService.listSubgroups();
+  }
+
+  /** Spreadsheet upload: archives the current subgroups and makes these the active set. */
+  @Post('subgroups/import')
+  importSubgroups(@Body() dto: ImportSubgroupsDto) {
+    return this.gatewayService.importSubgroups(dto);
+  }
+
+  /** Earlier subgroup sets, grouped by when they were archived. */
+  @Get('subgroups/archived')
+  listArchivedSubgroups() {
+    return this.gatewayService.listArchivedSubgroups();
+  }
+
+  /** Makes an archived set active again (the current set is archived in its place). */
+  @Post('subgroups/restore')
+  restoreSubgroups(@Body() body: { archivedAt: string }) {
+    return this.gatewayService.restoreSubgroups(body?.archivedAt);
   }
 
   @Get('subgroups/page')

@@ -52,6 +52,24 @@ export interface DashboardData {
   status: ControlStatus;
 }
 
+export interface ImportSubgroupsResult {
+  imported: number;
+  /** How many previously active subgroups were archived by this import. */
+  archived: number;
+  archivedAt: string | null;
+}
+
+/** Subgroups archived together (by one upload or restore). */
+export interface ArchivedSubgroupSet {
+  archivedAt: string;
+  subgroups: Subgroup[];
+}
+
+export interface RestoreSubgroupsResult {
+  restored: number;
+  archived: number;
+}
+
 export interface PaginatedSubgroups {
   subgroups: Subgroup[];
   total: number;

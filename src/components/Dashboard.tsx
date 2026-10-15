@@ -25,6 +25,7 @@ import { RuleToggles } from './RuleToggles';
 import { SubgroupList } from './SubgroupList';
 import { SubgroupEditor } from './SubgroupEditor';
 import { Pagination } from './Pagination';
+import { PreviousUploads } from './PreviousUploads';
 import { ColourPChartModule } from './pchart/ColourPChartModule';
 
 type Tab = 'home' | 'trends' | 'records' | 'colour';
@@ -245,6 +246,7 @@ export function Dashboard() {
               />
             ) : (
               <ExcelUploadForm
+                activeCount={data?.subgroups.length ?? 0}
                 onImported={() => {
                   load();
                   setTab('trends');
@@ -356,6 +358,12 @@ export function Dashboard() {
                 />
               </>
             )}
+
+            <PreviousUploads
+              activeCount={data?.subgroups.length ?? 0}
+              refreshKey={data}
+              onRestored={handleRecordsMutated}
+            />
           </>
         )}
       </main>

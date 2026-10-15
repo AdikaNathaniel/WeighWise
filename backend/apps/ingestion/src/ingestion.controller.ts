@@ -4,6 +4,7 @@ import {
   INGESTION_PATTERNS,
   CreateColourBatchDto,
   CreateSubgroupDto,
+  ImportSubgroupsDto,
   UpdateColourBatchDto,
   UpdateSubgroupDto,
 } from '@app/common';
@@ -36,6 +37,21 @@ export class IngestionController {
   @MessagePattern(INGESTION_PATTERNS.DELETE_SUBGROUP)
   deleteSubgroup(@Payload() id: string) {
     return this.ingestionService.deleteSubgroup(id);
+  }
+
+  @MessagePattern(INGESTION_PATTERNS.IMPORT_SUBGROUPS)
+  importSubgroups(@Payload() dto: ImportSubgroupsDto) {
+    return this.ingestionService.importSubgroups(dto.subgroups);
+  }
+
+  @MessagePattern(INGESTION_PATTERNS.LIST_ARCHIVED_SUBGROUPS)
+  listArchivedSubgroups() {
+    return this.ingestionService.listArchivedSubgroups();
+  }
+
+  @MessagePattern(INGESTION_PATTERNS.RESTORE_SUBGROUPS)
+  restoreSubgroups(@Payload() payload: { archivedAt: string }) {
+    return this.ingestionService.restoreSubgroups(payload.archivedAt);
   }
 
   @MessagePattern(INGESTION_PATTERNS.CREATE_COLOUR_BATCH)

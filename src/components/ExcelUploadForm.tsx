@@ -1,17 +1,24 @@
 'use client';
 
 import { useState } from 'react';
-import { createSubgroup } from '@/lib/api';
+import { importSubgroups } from '@/lib/api';
 import { parseWorkbook, ParseResult } from '@/lib/excelImport';
 
-type ImportOutcome = { productionDate: string; success: boolean; error?: string };
+type ImportOutcome = { imported: number; archived: number } | { error: string };
 
-export function ExcelUploadForm({ onImported }: { onImported: () => void }) {
+export function ExcelUploadForm({
+  activeCount,
+  onImported,
+}: {
+  /** Subgroups currently in use — they are archived when the upload is imported. */
+  activeCount: number;
+  onImported: () => void;
+}) {
   const [fileName, setFileName] = useState<string | null>(null);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
-  const [outcomes, setOutcomes] = useState<ImportOutcome[] | null>(null);
+  const [outcome, setOutcome] = useState<ImportOutcome | null>(null);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -19,7 +26,7 @@ export function ExcelUploadForm({ onImported }: { onImported: () => void }) {
 
     setFileName(file.name);
     setParseError(null);
-    setOutcomes(null);
+    setOutcome(null);
     setParseResult(null);
 
     try {
@@ -33,28 +40,23 @@ export function ExcelUploadForm({ onImported }: { onImported: () => void }) {
   async function handleImport() {
     if (!parseResult) return;
     setImporting(true);
-    const results: ImportOutcome[] = [];
-
-    for (const group of parseResult.validGroups) {
-      try {
-        await createSubgroup({
+    // One request: the upload replaces the active set all-or-nothing.
+    try {
+      const result = await importSubgroups(
+        parseResult.validGroups.map((group) => ({
           productionDate: group.productionDate,
           sampleSize: group.weights.length,
           weights: group.weights,
-        });
-        results.push({ productionDate: group.productionDate, success: true });
-      } catch (err) {
-        results.push({
-          productionDate: group.productionDate,
-          success: false,
-          error: err instanceof Error ? err.message : 'Import failed.',
-        });
-      }
+        })),
+      );
+      setOutcome({ imported: result.imported, archived: result.archived });
+      setParseResult(null);
+      onImported();
+    } catch (err) {
+      setOutcome({ error: err instanceof Error ? err.message : 'Import failed.' });
+    } finally {
+      setImporting(false);
     }
-
-    setOutcomes(results);
-    setImporting(false);
-    if (results.some((r) => r.success)) onImported();
   }
 
   return (
@@ -66,6 +68,11 @@ export function ExcelUploadForm({ onImported }: { onImported: () => void }) {
         (rows sharing a date are grouped into one subgroup), or <strong>Production date</strong> +{' '}
         <strong>Sample 1 (g)</strong>, <strong>Sample 2 (g)</strong>, etc. with one row per
         subgroup — the SPC template layout. Either way, subgroups need 2–10 packages.
+      </p>
+      <p className="rounded-md border border-border bg-primary-soft px-3 py-2 text-sm text-primary-hover">
+        An upload <strong>replaces</strong> the subgroups used for the charts and calculations
+        {activeCount > 0 ? ` (currently ${activeCount})` : ''}. Earlier subgroups are kept under{' '}
+        <strong>Records → Previous uploads</strong>, where they can be viewed or used again.
       </p>
 
       <input
@@ -134,24 +141,26 @@ export function ExcelUploadForm({ onImported }: { onImported: () => void }) {
                 ? 'Importing…'
                 : `Import ${parseResult.validGroups.length} subgroup${
                     parseResult.validGroups.length === 1 ? '' : 's'
-                  }`}
+                  }${activeCount > 0 ? ` and replace the current ${activeCount}` : ''}`}
             </button>
           )}
         </div>
       )}
 
-      {outcomes && (
-        <div className="rounded-md border border-border p-3 text-sm space-y-1">
-          <p className="font-medium">
-            {outcomes.filter((o) => o.success).length} of {outcomes.length} subgroups imported.
-          </p>
-          {outcomes
-            .filter((o) => !o.success)
-            .map((o, i) => (
-              <p key={i} className="text-red-600">
-                {o.productionDate}: {o.error}
-              </p>
-            ))}
+      {outcome && (
+        <div className="rounded-md border border-border p-3 text-sm">
+          {'error' in outcome ? (
+            <p className="text-red-600">
+              Import failed — nothing was changed. {outcome.error}
+            </p>
+          ) : (
+            <p className="font-medium">
+              {outcome.imported} subgroup{outcome.imported === 1 ? '' : 's'} imported and now in
+              use.
+              {outcome.archived > 0 &&
+                ` The previous ${outcome.archived} moved to Records → Previous uploads.`}
+            </p>
+          )}
         </div>
       )}
     </div>

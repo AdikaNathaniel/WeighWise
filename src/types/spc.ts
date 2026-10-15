@@ -64,6 +64,22 @@ export interface UpdateSubgroupInput {
   weights: number[];
 }
 
+export interface ImportSubgroupsResult {
+  imported: number;
+  archived: number;
+  archivedAt: string | null;
+}
+
+export interface ArchivedSubgroupSet {
+  archivedAt: string;
+  subgroups: Subgroup[];
+}
+
+export interface RestoreSubgroupsResult {
+  restored: number;
+  archived: number;
+}
+
 export interface PaginatedSubgroups {
   subgroups: Subgroup[];
   total: number;

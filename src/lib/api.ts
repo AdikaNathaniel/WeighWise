@@ -1,6 +1,9 @@
 import {
+  ArchivedSubgroupSet,
   CreateSubgroupInput,
   DashboardData,
+  ImportSubgroupsResult,
+  RestoreSubgroupsResult,
   PaginatedSubgroups,
   Subgroup,
   UpdateSubgroupInput,
@@ -39,6 +42,25 @@ export function createSubgroup(input: CreateSubgroupInput): Promise<Subgroup> {
   return request<Subgroup>('/subgroups', {
     method: 'POST',
     body: JSON.stringify(input),
+  });
+}
+
+/** Spreadsheet upload: these subgroups replace the active set (the old set is archived). */
+export function importSubgroups(subgroups: CreateSubgroupInput[]): Promise<ImportSubgroupsResult> {
+  return request<ImportSubgroupsResult>('/subgroups/import', {
+    method: 'POST',
+    body: JSON.stringify({ subgroups }),
+  });
+}
+
+export function fetchArchivedSubgroups(): Promise<ArchivedSubgroupSet[]> {
+  return request<ArchivedSubgroupSet[]>('/subgroups/archived');
+}
+
+export function restoreSubgroups(archivedAt: string): Promise<RestoreSubgroupsResult> {
+  return request<RestoreSubgroupsResult>('/subgroups/restore', {
+    method: 'POST',
+    body: JSON.stringify({ archivedAt }),
   });
 }
 

@@ -6,8 +6,11 @@ import {
   ColourBatch,
   CreateColourBatchDto,
   CreateSubgroupDto,
+  ArchivedSubgroupSet,
+  ImportSubgroupsResult,
   PaginatedSubgroups,
   RestoreColourBatchesResult,
+  RestoreSubgroupsResult,
   Subgroup,
   UpdateColourBatchDto,
   UpdateSubgroupDto,
@@ -28,8 +31,12 @@ interface SubgroupRow {
   mean: number;
   range: number;
   created_at: string;
+  archived_at?: string | null;
   samples?: SampleRow[];
 }
+
+const SUBGROUP_COLUMNS =
+  'id, production_date, sample_size, mean, range, created_at, archived_at, samples(sample_index, weight_g)';
 
 interface ColourBatchRow {
   id: string;
@@ -85,7 +92,8 @@ export class IngestionService {
   async listSubgroups(): Promise<Subgroup[]> {
     const { data, error } = await this.supabase
       .from('subgroups')
-      .select('id, production_date, sample_size, mean, range, created_at, samples(sample_index, weight_g)')
+      .select(SUBGROUP_COLUMNS)
+      .is('archived_at', null)
       .order('production_date', { ascending: true });
 
     if (error) {
@@ -109,9 +117,8 @@ export class IngestionService {
 
     const { data, error, count } = await this.supabase
       .from('subgroups')
-      .select('id, production_date, sample_size, mean, range, created_at, samples(sample_index, weight_g)', {
-        count: 'exact',
-      })
+      .select(SUBGROUP_COLUMNS, { count: 'exact' })
+      .is('archived_at', null)
       .order('production_date', { ascending: false })
       .range(from, to);
 
@@ -178,6 +185,127 @@ export class IngestionService {
       throw new Error(error.message);
     }
     return { id };
+  }
+
+  /**
+   * Replaces the active subgroup set with an uploaded spreadsheet. The new
+   * subgroups are first written hidden (archived under a staging timestamp);
+   * only once every row is stored are the current subgroups archived and the
+   * new ones made active, so a failed upload never leaves a partial set.
+   */
+  async importSubgroups(dtos: CreateSubgroupDto[]): Promise<ImportSubgroupsResult> {
+    const stagingAt = new Date().toISOString();
+
+    const { data: inserted, error: insertError } = await this.supabase
+      .from('subgroups')
+      .insert(
+        dtos.map((dto) => ({
+          production_date: dto.productionDate,
+          sample_size: dto.sampleSize,
+          mean: dto.weights.reduce((sum, w) => sum + w, 0) / dto.weights.length,
+          range: Math.max(...dto.weights) - Math.min(...dto.weights),
+          archived_at: stagingAt,
+        })),
+      )
+      .select('id');
+    if (insertError) {
+      throw new Error(insertError.message);
+    }
+
+    const ids = (inserted ?? []).map((row: { id: string }) => row.id);
+    const sampleRows = dtos.flatMap((dto, i) =>
+      dto.weights.map((weight, index) => ({
+        subgroup_id: ids[i],
+        sample_index: index + 1,
+        weight_g: weight,
+      })),
+    );
+    const { error: samplesError } = await this.supabase.from('samples').insert(sampleRows);
+    if (samplesError) {
+      // Samples cascade-delete with their subgroup.
+      await this.supabase.from('subgroups').delete().in('id', ids);
+      throw new Error(samplesError.message);
+    }
+
+    const archivedAt = new Date(Math.max(Date.now(), Date.parse(stagingAt) + 1)).toISOString();
+    const archived = await this.archiveActiveSubgroups(archivedAt);
+
+    const { error: activateError } = await this.supabase
+      .from('subgroups')
+      .update({ archived_at: null })
+      .in('id', ids);
+    if (activateError) {
+      throw new Error(activateError.message);
+    }
+
+    return { imported: ids.length, archived, archivedAt: archived > 0 ? archivedAt : null };
+  }
+
+  /** Archived subgroup sets, most recently archived first. */
+  async listArchivedSubgroups(): Promise<ArchivedSubgroupSet[]> {
+    const { data, error } = await this.supabase
+      .from('subgroups')
+      .select(SUBGROUP_COLUMNS)
+      .not('archived_at', 'is', null)
+      .order('archived_at', { ascending: false })
+      .order('production_date', { ascending: true });
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const sets = new Map<number, ArchivedSubgroupSet>();
+    for (const row of (data ?? []) as SubgroupRow[]) {
+      const key = Date.parse(row.archived_at as string);
+      const set = sets.get(key) ?? { archivedAt: row.archived_at as string, subgroups: [] };
+      set.subgroups.push(this.toSubgroup(row, this.sortedWeights(row)));
+      sets.set(key, set);
+    }
+    return [...sets.values()];
+  }
+
+  /**
+   * Makes an archived set the active one again. The subgroups active at the
+   * time are archived first, so only one set ever feeds the charts.
+   */
+  async restoreSubgroups(archivedAt: string): Promise<RestoreSubgroupsResult> {
+    const target = (await this.listArchivedSubgroups()).find(
+      (set) => Date.parse(set.archivedAt) === Date.parse(archivedAt),
+    );
+    if (!target) {
+      throw new Error(`No archived subgroups found for ${archivedAt}.`);
+    }
+
+    const archived = await this.archiveActiveSubgroups(new Date().toISOString());
+    const { error } = await this.supabase
+      .from('subgroups')
+      .update({ archived_at: null })
+      .in(
+        'id',
+        target.subgroups.map((s) => s.id),
+      );
+    if (error) {
+      throw new Error(error.message);
+    }
+    return { restored: target.subgroups.length, archived };
+  }
+
+  private async archiveActiveSubgroups(archivedAt: string): Promise<number> {
+    const { data, error } = await this.supabase
+      .from('subgroups')
+      .update({ archived_at: archivedAt })
+      .is('archived_at', null)
+      .select('id');
+    if (error) {
+      throw new Error(error.message);
+    }
+    return (data ?? []).length;
+  }
+
+  private sortedWeights(row: SubgroupRow): number[] {
+    return (row.samples ?? [])
+      .slice()
+      .sort((a, b) => a.sample_index - b.sample_index)
+      .map((s) => Number(s.weight_g));
   }
 
   async createColourBatch(dto: CreateColourBatchDto): Promise<ColourBatch> {
