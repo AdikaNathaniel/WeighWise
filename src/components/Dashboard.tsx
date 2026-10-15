@@ -14,6 +14,7 @@ import { useEnabledRules } from '@/lib/useEnabledRules';
 import { formatBatchDate } from '@/lib/pChartFormat';
 import { DashboardData, PaginatedSubgroups } from '@/types/spc';
 import { Header } from './Header';
+import { NAV_ITEMS, SideNav, Tab } from './SideNav';
 import { StatusBadge } from './StatusBadge';
 import { SubgroupForm } from './SubgroupForm';
 import { ExcelUploadForm } from './ExcelUploadForm';
@@ -28,7 +29,6 @@ import { Pagination } from './Pagination';
 import { PreviousUploads } from './PreviousUploads';
 import { ColourPChartModule } from './pchart/ColourPChartModule';
 
-type Tab = 'home' | 'trends' | 'records' | 'colour';
 
 // SPC control limits are only statistically meaningful once a baseline of
 // subgroups has been collected — charts stay hidden until then.
@@ -81,45 +81,6 @@ function analyseChart(data: DashboardData, chart: ChartKind, enabled: RuleId[]):
     })),
     signals,
   };
-}
-
-const NAV_ITEMS: { tab: Tab; label: string }[] = [
-  { tab: 'home', label: 'Home' },
-  { tab: 'trends', label: 'Trends & Charts' },
-  { tab: 'records', label: 'Records' },
-  { tab: 'colour', label: 'Tom Brown p-Chart' },
-];
-
-/** Main navigation: a left sidebar on wider screens, a scrollable row on phones. */
-function SideNav({ tab, onSelect }: { tab: Tab; onSelect: (tab: Tab) => void }) {
-  return (
-    <nav
-      aria-label="Dashboard sections"
-      className="md:w-52 md:shrink-0 md:sticky md:top-6 md:self-start"
-    >
-      <ul className="flex gap-2 overflow-x-auto md:flex-col md:overflow-visible rounded-lg md:border md:border-border md:bg-surface md:p-2 md:shadow-sm">
-        {NAV_ITEMS.map((item) => {
-          const active = tab === item.tab;
-          return (
-            <li key={item.tab} className="shrink-0">
-              <button
-                type="button"
-                onClick={() => onSelect(item.tab)}
-                aria-current={active ? 'page' : undefined}
-                className={`w-full whitespace-nowrap rounded-md px-4 py-2 text-left text-sm font-medium transition ${
-                  active
-                    ? 'bg-primary text-white'
-                    : 'bg-surface text-muted border border-border md:border-transparent hover:text-foreground hover:bg-primary-soft'
-                }`}
-              >
-                {item.label}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
 }
 
 function TabButton({
@@ -238,9 +199,24 @@ export function Dashboard() {
         <SideNav tab={tab} onSelect={setTab} />
 
         <main className="min-w-0 flex-1 space-y-6">
-          {analysis && tab !== 'colour' && (
-            <div className="flex justify-end">
-              <StatusBadge isStable={analysis.isStable} />
+          {/* Page header row: the tab's own controls (or title) on the left, process status on the right. */}
+          {tab !== 'colour' && (
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              {tab === 'home' ? (
+                <div className="flex gap-2">
+                  <TabButton active={entryMode === 'manual'} onClick={() => setEntryMode('manual')}>
+                    Manual entry
+                  </TabButton>
+                  <TabButton active={entryMode === 'upload'} onClick={() => setEntryMode('upload')}>
+                    Upload spreadsheet
+                  </TabButton>
+                </div>
+              ) : (
+                <h2 className="text-base font-semibold text-foreground">
+                  {NAV_ITEMS.find((item) => item.tab === tab)?.label}
+                </h2>
+              )}
+              {analysis && <StatusBadge isStable={analysis.isStable} />}
             </div>
           )}
 
@@ -257,15 +233,6 @@ export function Dashboard() {
 
           {tab === 'home' && (
             <>
-              <div className="flex gap-2">
-                <TabButton active={entryMode === 'manual'} onClick={() => setEntryMode('manual')}>
-                  Manual entry
-                </TabButton>
-                <TabButton active={entryMode === 'upload'} onClick={() => setEntryMode('upload')}>
-                  Upload spreadsheet
-                </TabButton>
-              </div>
-
               {entryMode === 'manual' ? (
                 <SubgroupForm
                   onCreated={() => {
