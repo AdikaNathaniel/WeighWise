@@ -130,7 +130,7 @@ export function Dashboard() {
       setError(
         err instanceof Error
           ? err.message
-          : 'Could not reach the WeighWise backend.',
+          : 'Could not reach the ProcessWise backend.',
       );
     } finally {
       setLoading(false);

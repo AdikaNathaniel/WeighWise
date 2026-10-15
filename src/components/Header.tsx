@@ -3,11 +3,11 @@ export function Header() {
     <header className="bg-primary text-white">
       <div className="mx-auto max-w-7xl px-4 py-5 flex items-center gap-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 font-bold">
-          W
+          P
         </div>
         <div>
-          <h1 className="text-lg font-semibold leading-tight">WeighWise</h1>
-          <p className="text-xs text-white/80 leading-tight">Package Weight SPC Dashboard</p>
+          <h1 className="text-lg font-semibold leading-tight">ProcessWise</h1>
+          <p className="text-xs text-white/80 leading-tight">Weight &amp; Colour SPC Dashboard</p>
         </div>
       </div>
     </header>

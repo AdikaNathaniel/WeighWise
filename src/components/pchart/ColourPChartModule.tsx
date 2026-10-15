@@ -86,7 +86,7 @@ export function ColourPChartModule() {
         setError(null);
       })
       .catch((err) =>
-        setError(err instanceof Error ? err.message : 'Could not reach the WeighWise backend.'),
+        setError(err instanceof Error ? err.message : 'Could not reach the ProcessWise backend.'),
       )
       .finally(() => setLoading(false));
   }, []);
