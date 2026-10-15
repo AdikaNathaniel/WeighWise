@@ -57,19 +57,12 @@ export function SideNav({ tab, onSelect }: { tab: Tab; onSelect: (tab: Tab) => v
                   type="button"
                   onClick={() => onSelect(item.tab)}
                   aria-current={active ? 'page' : undefined}
-                  className={`group relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition ${
+                  className={`group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition ${
                     active
                       ? 'bg-primary-soft text-primary-hover'
                       : 'border border-border bg-surface text-muted hover:bg-primary-soft/60 hover:text-foreground md:border-transparent md:bg-transparent'
                   }`}
                 >
-                  {/* Accent bar marking the current section (sidebar only). */}
-                  <span
-                    aria-hidden="true"
-                    className={`absolute left-0 top-2 bottom-2 hidden w-1 rounded-full md:block ${
-                      active ? 'bg-primary' : 'bg-transparent'
-                    }`}
-                  />
                   <span
                     className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition ${
                       active
@@ -77,7 +70,7 @@ export function SideNav({ tab, onSelect }: { tab: Tab; onSelect: (tab: Tab) => v
                         : 'bg-primary-soft text-primary group-hover:bg-white'
                     }`}
                   >
-                    <NavIcon tab={item.tab} className="h-[18px] w-[18px]" />
+                    <NavIcon tab={item.tab} className="h-4.5 w-4.5" />
                   </span>
                   <span className="min-w-0">
                     <span
