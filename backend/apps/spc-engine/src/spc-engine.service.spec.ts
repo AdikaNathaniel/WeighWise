@@ -1,4 +1,4 @@
-import { ColourBatch } from '@app/common';
+import { ColourBatch, Subgroup, SubgroupExclusion } from '@app/common';
 import { SpcEngineService } from './spc-engine.service.js';
 
 // Batches 1–15 from Tom_Brown_Colour_P_Chart_Calculator.xlsx: [n, d]
@@ -136,5 +136,52 @@ describe('SpcEngineService.computePChart — 25-batch workbook', () => {
       points.filter((pt) => pt.status === 'out-of-control').map((pt) => pt.batchLabel),
     ).toEqual(['4', '8', '9', '10', '12', '17', '20']);
     expect(points[19].violatedLimit).toBe('lcl');
+  });
+});
+
+describe('SpcEngineService.computeSummary — assignable-cause exclusions', () => {
+  const service = new SpcEngineService();
+
+  function subgroup(id: string, weights: number[], excluded = false): Subgroup {
+    return {
+      id,
+      productionDate: '2026-07-10',
+      sampleSize: weights.length,
+      weights,
+      mean: weights.reduce((a, b) => a + b, 0) / weights.length,
+      range: Math.max(...weights) - Math.min(...weights),
+      createdAt: '2026-07-10T00:00:00Z',
+      exclusion: excluded ? ({ id: `x-${id}` } as SubgroupExclusion) : null,
+    };
+  }
+
+  const subgroups = [
+    subgroup('a', [500, 502, 498, 501, 499]),
+    subgroup('b', [501, 503, 499, 500, 502]),
+    subgroup('c', [600, 450, 590, 610, 500], true),
+  ];
+
+  it('leaves excluded subgroups out of the grand mean and average range', () => {
+    const summary = service.computeSummary(subgroups);
+    expect(summary.subgroupCount).toBe(2);
+    expect(summary.excludedCount).toBe(1);
+    expect(summary.totalSampleCount).toBe(10);
+    expect(summary.grandMean).toBeCloseTo(500.5, 10);
+    expect(summary.averageRange).toBeCloseTo(4, 10);
+  });
+
+  it('still returns limits for the excluded subgroup', () => {
+    const summary = service.computeSummary(subgroups);
+    expect(summary.limitsBySubgroup.map((l) => l.subgroupId)).toEqual(['a', 'b', 'c']);
+    // n = 5: A2 = 0.577, D4 = 2.115
+    expect(summary.limitsBySubgroup[2].xBar.ucl).toBeCloseTo(500.5 + 0.577 * 4, 3);
+    expect(summary.limitsBySubgroup[2].r.ucl).toBeCloseTo(2.115 * 4, 3);
+  });
+
+  it('matches the trial limits when nothing is excluded', () => {
+    const trial = service.computeSummary(subgroups.map((s) => ({ ...s, exclusion: null })));
+    expect(trial.subgroupCount).toBe(3);
+    expect(trial.excludedCount).toBe(0);
+    expect(trial.averageRange).toBeCloseTo((4 + 4 + 160) / 3, 10);
   });
 });

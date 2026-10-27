@@ -20,6 +20,8 @@ export interface ControlChartPoint {
   lcl: number;
   /** Nelson rules whose signals include this point (empty = no signal). */
   rules: RuleId[];
+  /** Excluded by an assignable-cause review (shown on the trial chart only). */
+  excluded?: boolean;
 }
 
 // Zone boundaries (±1σ, ±2σ) are derived from the 3σ limits: σ = (UCL − CL) / 3.
@@ -35,6 +37,9 @@ interface ChartRow extends ControlChartPoint {
 function ValueDot(props: { cx?: number; cy?: number; payload?: ChartRow }) {
   const { cx, cy, payload } = props;
   if (cx === undefined || cy === undefined || !payload) return null;
+  if (payload.excluded) {
+    return <circle cx={cx} cy={cy} r={5} fill="#fff" stroke="#6b7280" strokeWidth={2} />;
+  }
   return payload.rules.length > 0 ? (
     <circle cx={cx} cy={cy} r={6} fill="#dc2626" stroke="#fff" strokeWidth={2} />
   ) : (
@@ -63,6 +68,9 @@ function ChartTooltip({
       <div>UCL: {row.ucl.toFixed(2)}</div>
       <div>CL: {row.cl.toFixed(2)}</div>
       <div>LCL: {row.lcl.toFixed(2)}</div>
+      {row.excluded && (
+        <div className="font-semibold text-muted">Excluded — assignable cause recorded</div>
+      )}
       {row.rules.length > 0 && (
         <div className="font-semibold text-red-600">
           Signal: rule{row.rules.length > 1 ? 's' : ''} {row.rules.join(', ')}

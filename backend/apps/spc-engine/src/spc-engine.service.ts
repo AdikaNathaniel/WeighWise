@@ -17,22 +17,30 @@ export class SpcEngineService {
    * individual sample directly. This is the correct estimator when subgroup
    * size (n) varies between production dates -- a simple average of means
    * would over-weight small subgroups.
+   *
+   * Subgroups excluded by an assignable-cause review are left out of X̿ and
+   * R̄ (the revised limits), but limits are still returned for every subgroup
+   * so excluded points can be shown against them.
    */
   computeSummary(subgroups: Subgroup[]): SpcSummary {
-    if (subgroups.length === 0) {
+    const included = subgroups.filter((s) => !s.exclusion);
+    const excludedCount = subgroups.length - included.length;
+
+    if (included.length === 0) {
       return {
         grandMean: 0,
         averageRange: 0,
         subgroupCount: 0,
         totalSampleCount: 0,
+        excludedCount,
         limitsBySubgroup: [],
       };
     }
 
-    const totalSampleCount = subgroups.reduce((sum, s) => sum + s.sampleSize, 0);
+    const totalSampleCount = included.reduce((sum, s) => sum + s.sampleSize, 0);
     const grandMean =
-      subgroups.reduce((sum, s) => sum + s.mean * s.sampleSize, 0) / totalSampleCount;
-    const averageRange = subgroups.reduce((sum, s) => sum + s.range, 0) / subgroups.length;
+      included.reduce((sum, s) => sum + s.mean * s.sampleSize, 0) / totalSampleCount;
+    const averageRange = included.reduce((sum, s) => sum + s.range, 0) / included.length;
 
     const limitsBySubgroup: SubgroupControlLimits[] = subgroups.map((s) => {
       const { A2, D3, D4 } = getControlChartConstants(s.sampleSize);
@@ -58,8 +66,9 @@ export class SpcEngineService {
     return {
       grandMean,
       averageRange,
-      subgroupCount: subgroups.length,
+      subgroupCount: included.length,
       totalSampleCount,
+      excludedCount,
       limitsBySubgroup,
     };
   }

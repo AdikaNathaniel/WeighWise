@@ -6,12 +6,14 @@ import {
   SPC_ENGINE_PATTERNS,
   ALERTING_PATTERNS,
   CreateSubgroupDto,
+  ExcludeSubgroupDto,
   UpdateSubgroupDto,
   ImportSubgroupsDto,
   ImportSubgroupsResult,
   ArchivedSubgroupSet,
   RestoreSubgroupsResult,
   Subgroup,
+  SubgroupExclusion,
   SpcSummary,
   ControlStatus,
   DashboardData,
@@ -73,12 +75,31 @@ export class GatewayService {
     );
   }
 
+  excludeSubgroup(id: string, dto: ExcludeSubgroupDto): Promise<SubgroupExclusion> {
+    return firstValueFrom(
+      this.ingestionClient.send(INGESTION_PATTERNS.EXCLUDE_SUBGROUP, { id, dto }),
+    );
+  }
+
+  reinstateSubgroup(id: string): Promise<{ id: string; reinstated: number }> {
+    return firstValueFrom(this.ingestionClient.send(INGESTION_PATTERNS.REINSTATE_SUBGROUP, id));
+  }
+
   async getDashboard(): Promise<DashboardData> {
     const subgroups = await this.listSubgroups();
 
     const summary = await firstValueFrom(
       this.spcEngineClient.send<SpcSummary>(SPC_ENGINE_PATTERNS.COMPUTE_SUMMARY, subgroups),
     );
+    // Trial limits treat every subgroup as included, as before any review.
+    const trialSummary = subgroups.some((s) => s.exclusion)
+      ? await firstValueFrom(
+          this.spcEngineClient.send<SpcSummary>(
+            SPC_ENGINE_PATTERNS.COMPUTE_SUMMARY,
+            subgroups.map((s) => ({ ...s, exclusion: null })),
+          ),
+        )
+      : summary;
 
     const status = await firstValueFrom(
       this.alertingClient.send<ControlStatus>(ALERTING_PATTERNS.EVALUATE_STATUS, {
@@ -87,7 +108,7 @@ export class GatewayService {
       }),
     );
 
-    return { subgroups, summary, status };
+    return { subgroups, summary, trialSummary, status };
   }
 
   createColourBatch(dto: CreateColourBatchDto): Promise<ColourBatch> {

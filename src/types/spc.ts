@@ -1,3 +1,20 @@
+/** An assignable-cause review that excludes its subgroup from the revised limits. */
+export interface SubgroupExclusion {
+  id: string;
+  chart: 'x-bar' | 'r';
+  rule: number;
+  direction: string;
+  value: number;
+  limitType: 'ucl' | 'cl' | 'lcl';
+  trialLimit: number;
+  category: string;
+  cause: string;
+  found: string;
+  correctiveAction: string;
+  investigatedOn: string;
+  createdAt: string;
+}
+
 export interface Subgroup {
   id: string;
   productionDate: string;
@@ -6,6 +23,8 @@ export interface Subgroup {
   mean: number;
   range: number;
   createdAt: string;
+  /** The active assignable-cause review, or null when the subgroup counts toward the limits. */
+  exclusion: SubgroupExclusion | null;
 }
 
 export interface ControlLimits {
@@ -27,8 +46,10 @@ export interface SubgroupControlLimits {
 export interface SpcSummary {
   grandMean: number;
   averageRange: number;
+  /** Subgroups the limits are calculated from (excluded subgroups are not counted). */
   subgroupCount: number;
   totalSampleCount: number;
+  excludedCount: number;
   limitsBySubgroup: SubgroupControlLimits[];
 }
 
@@ -48,7 +69,10 @@ export interface ControlStatus {
 
 export interface DashboardData {
   subgroups: Subgroup[];
+  /** Revised limits: excluded subgroups are left out of the calculation. */
   summary: SpcSummary;
+  /** Trial limits: every subgroup counts, as before any assignable-cause review. */
+  trialSummary: SpcSummary;
   status: ControlStatus;
 }
 
@@ -62,6 +86,21 @@ export interface UpdateSubgroupInput {
   productionDate: string;
   sampleSize: number;
   weights: number[];
+}
+
+export interface ExcludeSubgroupInput {
+  chart: 'x-bar' | 'r';
+  rule: number;
+  direction: string;
+  value: number;
+  limitType: 'ucl' | 'cl' | 'lcl';
+  trialLimit: number;
+  category: string;
+  cause: string;
+  found: string;
+  correctiveAction: string;
+  investigatedOn: string;
+  confirmed: true;
 }
 
 export interface ImportSubgroupsResult {

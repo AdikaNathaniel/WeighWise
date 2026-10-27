@@ -12,7 +12,8 @@ import {
 } from '@/lib/nelsonRules';
 import { useEnabledRules } from '@/lib/useEnabledRules';
 import { formatBatchDate } from '@/lib/pChartFormat';
-import { DashboardData, PaginatedSubgroups } from '@/types/spc';
+import { buildReviewItems, ChartKind } from '@/lib/signalReview';
+import { DashboardData, PaginatedSubgroups, SpcSummary, Subgroup } from '@/types/spc';
 import { Header } from './Header';
 import { NAV_ITEMS, SideNav, Tab } from './SideNav';
 import { StatusBadge } from './StatusBadge';
@@ -27,6 +28,9 @@ import { SubgroupList } from './SubgroupList';
 import { SubgroupEditor } from './SubgroupEditor';
 import { Pagination } from './Pagination';
 import { PreviousUploads } from './PreviousUploads';
+import { OutOfControlPoints } from './OutOfControlPoints';
+import { AssignableCauseDialog } from './AssignableCauseDialog';
+import { ExcludedSubgroups } from './ExcludedSubgroups';
 import { ColourPChartModule } from './pchart/ColourPChartModule';
 
 
@@ -44,16 +48,22 @@ function formatLabel(isoDate: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
 }
 
-type ChartKind = 'x-bar' | 'r';
-
 interface ChartAnalysis {
+  subgroups: Subgroup[];
   chartData: ControlChartPoint[];
+  points: RulePoint[];
   signals: RuleSignal[];
 }
 
-function analyseChart(data: DashboardData, chart: ChartKind, enabled: RuleId[]): ChartAnalysis {
-  const points = data.subgroups.map((s) => {
-    const limits = data.summary.limitsBySubgroup.find((l) => l.subgroupId === s.id);
+/** Plots `subgroups` against `summary`'s limits; excluded subgroups are marked as such. */
+function analyseChart(
+  subgroups: Subgroup[],
+  summary: SpcSummary,
+  chart: ChartKind,
+  enabled: RuleId[],
+): ChartAnalysis {
+  const points = subgroups.map((s) => {
+    const limits = summary.limitsBySubgroup.find((l) => l.subgroupId === s.id);
     const band = chart === 'x-bar' ? limits?.xBar : limits?.r;
     const ucl = band?.ucl ?? 0;
     const cl = band?.cl ?? 0;
@@ -71,6 +81,7 @@ function analyseChart(data: DashboardData, chart: ChartKind, enabled: RuleId[]):
   const signals = detectSignals(points, enabled);
   const rules = rulesByPoint(signals, points.length);
   return {
+    subgroups,
     chartData: points.map(({ label, value, ucl, cl, lcl }, i) => ({
       label,
       value,
@@ -78,8 +89,22 @@ function analyseChart(data: DashboardData, chart: ChartKind, enabled: RuleId[]):
       cl,
       lcl,
       rules: rules[i],
+      excluded: Boolean(subgroups[i].exclusion),
     })),
+    points,
     signals,
+  };
+}
+
+function analyseCharts(subgroups: Subgroup[], summary: SpcSummary, enabled: RuleId[]) {
+  return {
+    xBar: analyseChart(subgroups, summary, 'x-bar', enabled),
+    r: analyseChart(
+      subgroups,
+      summary,
+      'r',
+      enabled.filter((rule) => RANGE_CHART_RULES.includes(rule)),
+    ),
   };
 }
 
@@ -114,6 +139,13 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   const [enabledRules, setRule] = useEnabledRules();
+
+  // The revised chart leaves out excluded subgroups; the trial chart shows every subgroup.
+  const [chartView, setChartView] = useState<'revised' | 'trial'>('revised');
+  const [reviewId, setReviewId] = useState<string | null>(null);
+  // "Review all" walks through every out-of-control point, minus those the user skips.
+  const [reviewQueue, setReviewQueue] = useState(false);
+  const [skipped, setSkipped] = useState<Set<string>>(new Set());
 
   const [recordsPage, setRecordsPage] = useState(1);
   const [records, setRecords] = useState<PaginatedSubgroups | null>(null);
@@ -169,22 +201,59 @@ export function Dashboard() {
 
   const analysis = useMemo(() => {
     if (!data) return null;
-    const xBar = analyseChart(data, 'x-bar', enabledRules);
-    const r = analyseChart(
-      data,
-      'r',
-      enabledRules.filter((rule) => RANGE_CHART_RULES.includes(rule)),
-    );
-    const points: SignalPointInfo[] = data.subgroups.map((s) => ({
-      label: formatBatchDate(s.productionDate),
-    }));
+    const included = data.subgroups.filter((s) => !s.exclusion);
+    const revised = analyseCharts(included, data.summary, enabledRules);
+    const trial = analyseCharts(data.subgroups, data.trialSummary, enabledRules);
+    const reviewItems = buildReviewItems(data.subgroups, [
+      { chart: 'x-bar', ...revised.xBar },
+      { chart: 'r', ...revised.r },
+    ]);
     return {
-      xBar,
-      r,
-      points,
-      isStable: xBar.signals.length === 0 && r.signals.length === 0,
+      revised,
+      trial,
+      reviewItems,
+      excludedCount: data.subgroups.length - included.length,
+      isStable: revised.xBar.signals.length === 0 && revised.r.signals.length === 0,
     };
   }, [data, enabledRules]);
+
+  const shownView = analysis && analysis.excludedCount > 0 ? chartView : 'revised';
+  const shown = analysis?.[shownView];
+  const signalPoints = (subgroups: Subgroup[]): SignalPointInfo[] =>
+    subgroups.map((s) => ({ label: formatBatchDate(s.productionDate) }));
+
+  // In the queue, the point under review is the first one not skipped; it is
+  // held back while the charts reload so a just-saved point is not reopened.
+  const queued = analysis?.reviewItems.filter((i) => !skipped.has(i.subgroup.id)) ?? [];
+  const reviewItem = reviewQueue
+    ? (loading ? null : (queued[0] ?? null))
+    : (analysis?.reviewItems.find((i) => i.subgroup.id === reviewId) ?? null);
+  const queueRemaining = Math.max(0, queued.length - 1);
+
+  function startReviewAll() {
+    setSkipped(new Set());
+    setChartView('revised');
+    setReviewQueue(true);
+  }
+
+  function closeReview() {
+    setReviewId(null);
+    setReviewQueue(false);
+    setSkipped(new Set());
+  }
+
+  function skipReview() {
+    if (!reviewItem) return;
+    if (queueRemaining === 0) closeReview();
+    else setSkipped((prev) => new Set(prev).add(reviewItem.subgroup.id));
+  }
+
+  function handleReviewSaved() {
+    // The queue ends with its last point; new signals from the revised limits stay listed.
+    if (reviewQueue && queueRemaining === 0) closeReview();
+    setReviewId(null);
+    load();
+  }
 
   function handleRecordsMutated() {
     load();
@@ -290,7 +359,7 @@ export function Dashboard() {
 
           {tab === 'trends' && analysis && data && data.subgroups.length >= MIN_SUBGROUPS_FOR_CHARTS && (
             <>
-              <SummaryPanel summary={data.summary} />
+              <SummaryPanel summary={shownView === 'trial' ? data.trialSummary : data.summary} />
 
               <RuleToggles
                 enabled={enabledRules}
@@ -298,28 +367,81 @@ export function Dashboard() {
                 note="As in Minitab, the R chart is checked with rules 1–4 only; rules 5–8 apply to the X-bar chart."
               />
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <ControlChart
-                  title="X-bar chart — subgroup mean"
-                  unit="g"
-                  data={analysis.xBar.chartData}
-                />
-                <ControlChart
-                  title="R chart — subgroup range"
-                  unit="g"
-                  data={analysis.r.chartData}
-                />
-              </div>
+              {analysis.excludedCount > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-3">
+                  <p className="text-sm text-muted">
+                    {shownView === 'revised'
+                      ? `Revised limits: ${analysis.excludedCount} subgroup${
+                          analysis.excludedCount === 1 ? '' : 's'
+                        } with an assignable cause removed, limits recalculated from the remaining ${
+                          data.summary.subgroupCount
+                        }.`
+                      : 'Trial limits: every subgroup counts. Excluded subgroups are shown as hollow grey points.'}
+                  </p>
+                  <div className="flex gap-2">
+                    <TabButton active={shownView === 'revised'} onClick={() => setChartView('revised')}>
+                      Revised chart
+                    </TabButton>
+                    <TabButton active={shownView === 'trial'} onClick={() => setChartView('trial')}>
+                      Trial chart
+                    </TabButton>
+                  </div>
+                </div>
+              )}
 
-              <div className="rounded-lg border border-border bg-surface p-4">
-                <h3 className="text-sm font-semibold mb-3">Rule signals</h3>
-                <RuleSignalList
-                  groups={[
-                    { chart: 'X-bar', signals: analysis.xBar.signals, points: analysis.points },
-                    { chart: 'R', signals: analysis.r.signals, points: analysis.points },
-                  ]}
-                />
-              </div>
+              {shown && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <ControlChart
+                      title={`X-bar chart — subgroup mean${analysis.excludedCount > 0 ? ` (${shownView})` : ''}`}
+                      unit="g"
+                      data={shown.xBar.chartData}
+                    />
+                    <ControlChart
+                      title={`R chart — subgroup range${analysis.excludedCount > 0 ? ` (${shownView})` : ''}`}
+                      unit="g"
+                      data={shown.r.chartData}
+                    />
+                  </div>
+
+                  <div className="rounded-lg border border-border bg-surface p-4">
+                    <h3 className="text-sm font-semibold mb-3">Rule signals</h3>
+                    <RuleSignalList
+                      groups={[
+                        {
+                          chart: 'X-bar',
+                          signals: shown.xBar.signals,
+                          points: signalPoints(shown.xBar.subgroups),
+                        },
+                        {
+                          chart: 'R',
+                          signals: shown.r.signals,
+                          points: signalPoints(shown.r.subgroups),
+                        },
+                      ]}
+                    />
+                  </div>
+                </>
+              )}
+
+              <OutOfControlPoints
+                items={analysis.reviewItems}
+                onReview={(item) => {
+                  setReviewQueue(false);
+                  setReviewId(item.subgroup.id);
+                }}
+                onReviewAll={startReviewAll}
+              />
+
+              <ExcludedSubgroups subgroups={data.subgroups} onReinstated={load} />
+
+              <AssignableCauseDialog
+                item={reviewItem}
+                queueRemaining={reviewQueue ? queueRemaining : 0}
+                onSaved={handleReviewSaved}
+                onSkip={skipReview}
+                onClose={closeReview}
+              />
             </>
           )}
 

@@ -12,6 +12,8 @@ export class AlertingService {
     const outOfControlPoints: OutOfControlPoint[] = [];
 
     for (const subgroup of subgroups) {
+      // Excluded subgroups have an assignable cause on record; they no longer signal.
+      if (subgroup.exclusion) continue;
       const limits = summary.limitsBySubgroup.find((l) => l.subgroupId === subgroup.id);
       if (!limits) continue;
 

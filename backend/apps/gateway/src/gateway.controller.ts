@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestj
 import {
   CreateColourBatchDto,
   CreateSubgroupDto,
+  ExcludeSubgroupDto,
   ImportSubgroupsDto,
   UpdateColourBatchDto,
   UpdateSubgroupDto,
@@ -53,6 +54,18 @@ export class GatewayController {
   @Delete('subgroups/:id')
   deleteSubgroup(@Param('id') id: string) {
     return this.gatewayService.deleteSubgroup(id);
+  }
+
+  /** Records an assignable-cause review and excludes the subgroup from the revised limits. */
+  @Post('subgroups/:id/exclusion')
+  excludeSubgroup(@Param('id') id: string, @Body() dto: ExcludeSubgroupDto) {
+    return this.gatewayService.excludeSubgroup(id, dto);
+  }
+
+  /** Reinstates an excluded subgroup; its review stays in the revision history. */
+  @Delete('subgroups/:id/exclusion')
+  reinstateSubgroup(@Param('id') id: string) {
+    return this.gatewayService.reinstateSubgroup(id);
   }
 
   @Get('dashboard')

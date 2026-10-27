@@ -2,10 +2,12 @@ import {
   ArchivedSubgroupSet,
   CreateSubgroupInput,
   DashboardData,
+  ExcludeSubgroupInput,
   ImportSubgroupsResult,
   RestoreSubgroupsResult,
   PaginatedSubgroups,
   Subgroup,
+  SubgroupExclusion,
   UpdateSubgroupInput,
 } from '@/types/spc';
 import {
@@ -77,6 +79,21 @@ export function updateSubgroup(id: string, input: UpdateSubgroupInput): Promise<
 
 export function deleteSubgroup(id: string): Promise<{ id: string }> {
   return request<{ id: string }>(`/subgroups/${id}`, { method: 'DELETE' });
+}
+
+/** Records an assignable-cause review; the subgroup is left out of the revised limits. */
+export function excludeSubgroup(id: string, input: ExcludeSubgroupInput): Promise<SubgroupExclusion> {
+  return request<SubgroupExclusion>(`/subgroups/${id}/exclusion`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+/** Puts an excluded subgroup back into the limits; its review stays in the history. */
+export function reinstateSubgroup(id: string): Promise<{ id: string; reinstated: number }> {
+  return request<{ id: string; reinstated: number }>(`/subgroups/${id}/exclusion`, {
+    method: 'DELETE',
+  });
 }
 
 export function fetchPChart(): Promise<PChartData> {
