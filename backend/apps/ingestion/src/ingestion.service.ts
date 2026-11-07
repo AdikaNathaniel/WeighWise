@@ -7,13 +7,13 @@ import {
   CreateColourBatchDto,
   CreateSubgroupDto,
   ArchivedSubgroupSet,
-  ExcludeSubgroupDto,
   ImportSubgroupsResult,
   PaginatedSubgroups,
   RestoreColourBatchesResult,
   RestoreSubgroupsResult,
+  ReviewSubgroupDto,
   Subgroup,
-  SubgroupExclusion,
+  SubgroupReview,
   UpdateColourBatchDto,
   UpdateSubgroupDto,
 } from '@app/common';
@@ -40,7 +40,7 @@ interface SubgroupRow {
 const SUBGROUP_COLUMNS =
   'id, production_date, sample_size, mean, range, created_at, archived_at, samples(sample_index, weight_g)';
 
-interface ExclusionRow {
+interface ReviewRow {
   id: string;
   subgroup_id: string;
   chart: 'x-bar' | 'r';
@@ -49,16 +49,22 @@ interface ExclusionRow {
   value: number;
   limit_type: 'ucl' | 'cl' | 'lcl';
   trial_limit: number;
-  category: string;
-  cause: string;
-  found: string;
-  corrective_action: string;
+  outcome: SubgroupReview['outcome'];
+  excluded: boolean;
+  category: string | null;
+  cause: string | null;
+  causes: string[] | null;
+  evidence: string[] | null;
+  found: string | null;
+  corrective_action: string | null;
+  follow_up: string | null;
+  reviewer: string | null;
   investigated_on: string;
   created_at: string;
 }
 
-const EXCLUSION_COLUMNS =
-  'id, subgroup_id, chart, rule, direction, value, limit_type, trial_limit, category, cause, found, corrective_action, investigated_on, created_at';
+const REVIEW_COLUMNS =
+  'id, subgroup_id, chart, rule, direction, value, limit_type, trial_limit, outcome, excluded, category, cause, causes, evidence, found, corrective_action, follow_up, reviewer, investigated_on, created_at';
 
 interface ColourBatchRow {
   id: string;
@@ -78,6 +84,7 @@ export class IngestionService {
   constructor(@Inject(SUPABASE_CLIENT) private readonly supabase: SupabaseClient) {}
 
   async createSubgroup(dto: CreateSubgroupDto): Promise<Subgroup> {
+    await this.assertConsistentSampleSize(dto.sampleSize);
     const mean = dto.weights.reduce((sum, w) => sum + w, 0) / dto.weights.length;
     const range = Math.max(...dto.weights) - Math.min(...dto.weights);
 
@@ -129,7 +136,7 @@ export class IngestionService {
         .map((s) => Number(s.weight_g));
       return this.toSubgroup(row, weights);
     });
-    return this.attachExclusions(subgroups);
+    return this.attachReviews(subgroups);
   }
 
   async listSubgroupsPage(page: number, pageSize: number): Promise<PaginatedSubgroups> {
@@ -158,7 +165,7 @@ export class IngestionService {
     });
 
     return {
-      subgroups: await this.attachExclusions(subgroups),
+      subgroups: await this.attachReviews(subgroups),
       total: count ?? 0,
       page: safePage,
       pageSize: safePageSize,
@@ -166,6 +173,7 @@ export class IngestionService {
   }
 
   async updateSubgroup(id: string, dto: UpdateSubgroupDto): Promise<Subgroup> {
+    await this.assertConsistentSampleSize(dto.sampleSize, id);
     const mean = dto.weights.reduce((sum, w) => sum + w, 0) / dto.weights.length;
     const range = Math.max(...dto.weights) - Math.min(...dto.weights);
 
@@ -318,14 +326,22 @@ export class IngestionService {
   }
 
   /**
-   * Records an assignable-cause review and excludes the subgroup from the
-   * revised limits. The subgroup's own data are left untouched.
+   * Records the investigation of a subgroup's signal. A confirmed, evidenced
+   * cause may exclude the whole subgroup from the revised limits; any other
+   * outcome retains it. The subgroup's own data are left untouched.
    */
-  async excludeSubgroup(id: string, dto: ExcludeSubgroupDto): Promise<SubgroupExclusion> {
-    const found = dto.found.trim();
-    const correctiveAction = dto.correctiveAction.trim();
-    if (!found || !correctiveAction) {
-      throw new Error('What was found and the corrective action taken are both required.');
+  async reviewSubgroup(id: string, dto: ReviewSubgroupDto): Promise<SubgroupReview> {
+    const text = (value?: string | null) => value?.trim() || null;
+    const found = text(dto.found);
+    const correctiveAction = text(dto.correctiveAction);
+    const followUp = text(dto.followUp);
+    if (dto.excluded && (dto.outcome !== 'confirmed' || !found || !correctiveAction)) {
+      throw new Error(
+        'A subgroup can be excluded only for a confirmed cause with findings and a corrective action.',
+      );
+    }
+    if (!dto.excluded && !followUp) {
+      throw new Error('A follow-up action is required when the subgroup is retained.');
     }
 
     const { data: subgroup, error: subgroupError } = await this.supabase
@@ -351,26 +367,34 @@ export class IngestionService {
         value: dto.value,
         limit_type: dto.limitType,
         trial_limit: dto.trialLimit,
-        category: dto.category,
-        cause: dto.cause,
+        outcome: dto.outcome,
+        excluded: dto.excluded,
+        category: dto.outcome === 'none' ? null : (dto.category ?? null),
+        causes: dto.outcome === 'none' ? [] : dto.causes,
+        evidence: dto.evidence,
         found,
         corrective_action: correctiveAction,
+        follow_up: followUp,
+        reviewer: dto.reviewer.trim(),
         investigated_on: dto.investigatedOn.slice(0, 10),
       })
-      .select(EXCLUSION_COLUMNS)
+      .select(REVIEW_COLUMNS)
       .single();
     if (error) {
       // The partial unique index allows one active review per subgroup.
       if (error.code === '23505') {
-        throw new Error('This subgroup has already been excluded.');
+        throw new Error('This subgroup has already been reviewed. Reopen its review to change it.');
       }
       throw new Error(error.message);
     }
-    return this.toExclusion(data as ExclusionRow);
+    return this.toReview(data as ReviewRow);
   }
 
-  /** Puts an excluded subgroup back into the limits; the review is kept as history. */
-  async reinstateSubgroup(id: string): Promise<{ id: string; reinstated: number }> {
+  /**
+   * Reopens a subgroup's review: an excluded subgroup counts toward the limits
+   * again and its signal can be investigated afresh. The review is kept as history.
+   */
+  async reopenReview(id: string): Promise<{ id: string; reopened: number }> {
     const { data, error } = await this.supabase
       .from('subgroup_exclusions')
       .update({ reverted_at: new Date().toISOString() })
@@ -380,26 +404,31 @@ export class IngestionService {
     if (error) {
       throw new Error(error.message);
     }
-    return { id, reinstated: (data ?? []).length };
+    return { id, reopened: (data ?? []).length };
   }
 
-  private async attachExclusions(subgroups: Subgroup[]): Promise<Subgroup[]> {
+  private async attachReviews(subgroups: Subgroup[]): Promise<Subgroup[]> {
     if (subgroups.length === 0) return subgroups;
     // Active reviews are few, so fetch them all rather than filter by a long id list.
     const { data, error } = await this.supabase
       .from('subgroup_exclusions')
-      .select(EXCLUSION_COLUMNS)
+      .select(REVIEW_COLUMNS)
       .is('reverted_at', null);
     if (error) {
       throw new Error(error.message);
     }
     const bySubgroup = new Map(
-      ((data ?? []) as ExclusionRow[]).map((row) => [row.subgroup_id, this.toExclusion(row)]),
+      ((data ?? []) as ReviewRow[]).map((row) => [row.subgroup_id, this.toReview(row)]),
     );
-    return subgroups.map((s) => ({ ...s, exclusion: bySubgroup.get(s.id) ?? null }));
+    return subgroups.map((s) => {
+      const review = bySubgroup.get(s.id) ?? null;
+      return { ...s, review, exclusion: review?.excluded ? review : null };
+    });
   }
 
-  private toExclusion(row: ExclusionRow): SubgroupExclusion {
+  private toReview(row: ReviewRow): SubgroupReview {
+    // Reviews recorded before several causes could be chosen hold a single cause.
+    const causes = row.causes?.length ? row.causes : row.cause ? [row.cause] : [];
     return {
       id: row.id,
       chart: row.chart,
@@ -408,13 +437,39 @@ export class IngestionService {
       value: Number(row.value),
       limitType: row.limit_type,
       trialLimit: Number(row.trial_limit),
+      outcome: row.outcome,
+      excluded: row.excluded,
       category: row.category,
-      cause: row.cause,
+      causes,
+      evidence: row.evidence ?? [],
       found: row.found,
       correctiveAction: row.corrective_action,
+      followUp: row.follow_up,
+      reviewer: row.reviewer,
       investigatedOn: row.investigated_on,
       createdAt: row.created_at,
     };
+  }
+
+  /** Every active subgroup feeds one chart, so they must all share one sample size. */
+  private async assertConsistentSampleSize(sampleSize: number, ignoreId?: string): Promise<void> {
+    let query = this.supabase
+      .from('subgroups')
+      .select('sample_size')
+      .is('archived_at', null)
+      .neq('sample_size', sampleSize)
+      .limit(1);
+    if (ignoreId) query = query.neq('id', ignoreId);
+    const { data, error } = await query;
+    if (error) {
+      throw new Error(error.message);
+    }
+    const other = (data ?? [])[0] as { sample_size: number } | undefined;
+    if (other) {
+      throw new Error(
+        `Every subgroup on the chart must have the same sample size: the recorded subgroups have n = ${other.sample_size}, this one has n = ${sampleSize}.`,
+      );
+    }
   }
 
   private async archiveActiveSubgroups(archivedAt: string): Promise<number> {
@@ -591,6 +646,7 @@ export class IngestionService {
       mean: Number(row.mean),
       range: Number(row.range),
       createdAt: row.created_at,
+      review: null,
       exclusion: null,
     };
   }

@@ -90,6 +90,7 @@ export function ColourBatchForm({
             type="date"
             value={draft.productionDate}
             onChange={(e) => set('productionDate', e.target.value)}
+            required
             className={inputClass}
           />
         </label>

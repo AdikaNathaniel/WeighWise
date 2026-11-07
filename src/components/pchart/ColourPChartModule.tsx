@@ -9,8 +9,10 @@ import {
 } from '@/lib/api';
 import { exportPChartCsv, exportPChartXlsx, formatBatchDate, INVESTIGATE_MESSAGE } from '@/lib/pChartFormat';
 import { detectSignals, P_CHART_RULES, RuleId, RuleSignal, rulesByPoint } from '@/lib/nelsonRules';
+import { useEnabledRules } from '@/lib/useEnabledRules';
 import { ClearedColourBatch, PChartData } from '@/types/pChart';
 import { RuleSignalList } from '../RuleSignalList';
+import { RuleToggles } from '../RuleToggles';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { ColourBatchForm } from './ColourBatchForm';
 import { ColourBatchUploadForm } from './ColourBatchUploadForm';
@@ -30,14 +32,14 @@ interface RuleAnalysis {
 }
 
 /**
- * The p-chart uses rule 1 only (a batch beyond its 3σ limits), so batch status
- * matches the backend's; the signals still drive the chart highlighting and
- * the signal list.
+ * The p-chart is judged on the selected tests among 1–4, as for an R chart.
+ * A batch is out of control when any of them flags it, so batch status (and
+ * the summary) come from the signals rather than the backend's rule-1 check.
  */
-function analyse(raw: PChartData): RuleAnalysis {
+function analyse(raw: PChartData, enabled: RuleId[]): RuleAnalysis {
   const signals = detectSignals(
     raw.points.map((p) => ({ value: p.proportion, cl: p.cl, sigma: p.sigma, ucl: p.ucl, lcl: p.lcl })),
-    P_CHART_RULES,
+    enabled.filter((r) => P_CHART_RULES.includes(r)),
   );
   const rules = rulesByPoint(signals, raw.points.length);
   const points = raw.points.map((p, i) => ({
@@ -140,10 +142,12 @@ export function ColourPChartModule() {
     }
   }
 
+  const [enabledRules, setRule] = useEnabledRules();
   const analysis = useMemo(
-    () => (rawData ? analyse(rawData) : null),
-    [rawData],
+    () => (rawData ? analyse(rawData, enabledRules) : null),
+    [rawData, enabledRules],
   );
+  const pChartRules = enabledRules.filter((r) => P_CHART_RULES.includes(r));
   const data = analysis?.data ?? null;
   const hasBatches = !!data && data.points.length > 0;
 
@@ -297,12 +301,18 @@ export function ColourPChartModule() {
 
           {hasBatches && analysis && (
             <>
+              <RuleToggles
+                enabled={enabledRules}
+                onChange={setRule}
+                note="The p-chart is checked with tests 1–4 only (whichever of them are selected); tests 5–8 apply to the X-bar chart."
+              />
               <PChart points={data.points} rules={analysis.rules} />
               <div className="rounded-lg border border-border bg-surface p-4">
                 <h3 className="text-sm font-semibold">Rule signals</h3>
                 <p className="text-xs text-muted mb-3">
-                  The colour p-chart is checked with rule 1 only: a batch above the UCL or below
-                  the LCL.
+                  The colour p-chart is checked with test{pChartRules.length === 1 ? '' : 's'}{' '}
+                  {pChartRules.length ? pChartRules.join(', ') : '— none selected'}. Each batch is
+                  judged against its own limits.
                 </p>
                 <RuleSignalList
                   pointHeading="Batches flagged"

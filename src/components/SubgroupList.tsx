@@ -2,19 +2,16 @@
 
 import { useState } from 'react';
 import { deleteSubgroup } from '@/lib/api';
+import { formatBatchDate } from '@/lib/pChartFormat';
 import { Subgroup } from '@/types/spc';
 
 function fmt(n: number): string {
   return n.toFixed(2);
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: 'short',
-    day: '2-digit',
-    year: 'numeric',
-  });
-}
+// Production dates are calendar dates: parse them as local dates, not UTC
+// midnight, or they show as the previous day west of Greenwich.
+const formatDate = formatBatchDate;
 
 export function SubgroupList({
   subgroups,

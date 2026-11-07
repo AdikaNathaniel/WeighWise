@@ -6,14 +6,14 @@ import {
   SPC_ENGINE_PATTERNS,
   ALERTING_PATTERNS,
   CreateSubgroupDto,
-  ExcludeSubgroupDto,
+  ReviewSubgroupDto,
   UpdateSubgroupDto,
   ImportSubgroupsDto,
   ImportSubgroupsResult,
   ArchivedSubgroupSet,
   RestoreSubgroupsResult,
   Subgroup,
-  SubgroupExclusion,
+  SubgroupReview,
   SpcSummary,
   ControlStatus,
   DashboardData,
@@ -75,31 +75,35 @@ export class GatewayService {
     );
   }
 
-  excludeSubgroup(id: string, dto: ExcludeSubgroupDto): Promise<SubgroupExclusion> {
+  reviewSubgroup(id: string, dto: ReviewSubgroupDto): Promise<SubgroupReview> {
     return firstValueFrom(
-      this.ingestionClient.send(INGESTION_PATTERNS.EXCLUDE_SUBGROUP, { id, dto }),
+      this.ingestionClient.send(INGESTION_PATTERNS.REVIEW_SUBGROUP, { id, dto }),
     );
   }
 
-  reinstateSubgroup(id: string): Promise<{ id: string; reinstated: number }> {
-    return firstValueFrom(this.ingestionClient.send(INGESTION_PATTERNS.REINSTATE_SUBGROUP, id));
+  reopenReview(id: string): Promise<{ id: string; reopened: number }> {
+    return firstValueFrom(this.ingestionClient.send(INGESTION_PATTERNS.REOPEN_REVIEW, id));
+  }
+
+  private computeSummary(subgroups: Subgroup[]): Promise<SpcSummary> {
+    return firstValueFrom(
+      this.spcEngineClient.send<SpcSummary>(SPC_ENGINE_PATTERNS.COMPUTE_SUMMARY, subgroups),
+    );
   }
 
   async getDashboard(): Promise<DashboardData> {
     const subgroups = await this.listSubgroups();
+    const keepExclusions = (keep: (s: Subgroup) => boolean) =>
+      subgroups.map((s) => (s.exclusion && !keep(s) ? { ...s, exclusion: null } : s));
 
-    const summary = await firstValueFrom(
-      this.spcEngineClient.send<SpcSummary>(SPC_ENGINE_PATTERNS.COMPUTE_SUMMARY, subgroups),
-    );
-    // Trial limits treat every subgroup as included, as before any review.
-    const trialSummary = subgroups.some((s) => s.exclusion)
-      ? await firstValueFrom(
-          this.spcEngineClient.send<SpcSummary>(
-            SPC_ENGINE_PATTERNS.COMPUTE_SUMMARY,
-            subgroups.map((s) => ({ ...s, exclusion: null })),
-          ),
-        )
-      : summary;
+    // The three stages of the chart sequence: the trial chart counts every
+    // subgroup, chart 2 leaves out only the R-chart exclusions, and the
+    // revised chart leaves out every confirmed exclusion.
+    const [summary, rStageSummary, trialSummary] = await Promise.all([
+      this.computeSummary(subgroups),
+      this.computeSummary(keepExclusions((s) => s.exclusion?.chart === 'r')),
+      this.computeSummary(keepExclusions(() => false)),
+    ]);
 
     const status = await firstValueFrom(
       this.alertingClient.send<ControlStatus>(ALERTING_PATTERNS.EVALUATE_STATUS, {
@@ -108,7 +112,7 @@ export class GatewayService {
       }),
     );
 
-    return { subgroups, summary, trialSummary, status };
+    return { subgroups, summary, rStageSummary, trialSummary, status };
   }
 
   createColourBatch(dto: CreateColourBatchDto): Promise<ColourBatch> {

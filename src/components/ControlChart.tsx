@@ -9,24 +9,13 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { RuleId } from '@/lib/nelsonRules';
 import { evenTicks, fitDomain } from '@/lib/chartDomain';
-
-export interface ControlChartPoint {
-  label: string;
-  value: number;
-  ucl: number;
-  cl: number;
-  lcl: number;
-  /** Nelson rules whose signals include this point (empty = no signal). */
-  rules: RuleId[];
-  /** Excluded by an assignable-cause review (shown on the trial chart only). */
-  excluded?: boolean;
-}
+import { formatBatchDate } from '@/lib/pChartFormat';
+import { StagePoint } from '@/lib/reviewWorkflow';
 
 // Zone boundaries (±1σ, ±2σ) are derived from the 3σ limits: σ = (UCL − CL) / 3.
-interface ChartRow extends ControlChartPoint {
-  /** Position in the series — the X key, so repeated date labels stay distinct. */
+interface ChartRow extends StagePoint {
+  /** Position in the series — the X key. */
   idx: number;
   plus1: number;
   plus2: number;
@@ -36,14 +25,26 @@ interface ChartRow extends ControlChartPoint {
 
 function ValueDot(props: { cx?: number; cy?: number; payload?: ChartRow }) {
   const { cx, cy, payload } = props;
-  if (cx === undefined || cy === undefined || !payload) return null;
-  if (payload.excluded) {
-    return <circle cx={cx} cy={cy} r={5} fill="#fff" stroke="#6b7280" strokeWidth={2} />;
-  }
+  if (cx === undefined || cy === undefined || !payload || payload.value === null) return null;
   return payload.rules.length > 0 ? (
     <circle cx={cx} cy={cy} r={6} fill="#dc2626" stroke="#fff" strokeWidth={2} />
   ) : (
     <circle cx={cx} cy={cy} r={4} fill="#15803d" stroke="none" />
+  );
+}
+
+/** Excluded subgroups: a grey X at their original position, off the retained line. */
+function ExcludedMark(props: { cx?: number; cy?: number; payload?: ChartRow }) {
+  const { cx, cy, payload } = props;
+  if (cx === undefined || cy === undefined || payload?.excludedValue == null) return null;
+  const d = 5;
+  return (
+    <path
+      d={`M${cx - d} ${cy - d}L${cx + d} ${cy + d}M${cx + d} ${cy - d}L${cx - d} ${cy + d}`}
+      stroke="#6b7280"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+    />
   );
 }
 
@@ -58,22 +59,28 @@ function ChartTooltip({
 }) {
   if (!active || !payload?.length) return null;
   const row = payload[0].payload;
+  const excluded = row.value === null;
+  const value = row.value ?? row.excludedValue ?? 0;
   return (
     <div className="rounded-md border border-border bg-white px-3 py-2 text-xs shadow-md space-y-0.5">
-      <div className="font-semibold text-foreground">{row.label}</div>
+      <div className="font-semibold text-foreground">
+        Subgroup {row.number} · {formatBatchDate(row.date)}
+      </div>
       <div>
-        Value: {row.value.toFixed(2)}
+        Value: {value.toFixed(2)}
         {unit}
       </div>
       <div>UCL: {row.ucl.toFixed(2)}</div>
       <div>CL: {row.cl.toFixed(2)}</div>
       <div>LCL: {row.lcl.toFixed(2)}</div>
-      {row.excluded && (
-        <div className="font-semibold text-muted">Excluded — assignable cause recorded</div>
+      {excluded && (
+        <div className="font-semibold text-muted">
+          Excluded — confirmed assignable cause; not used for these limits
+        </div>
       )}
       {row.rules.length > 0 && (
         <div className="font-semibold text-red-600">
-          Signal: rule{row.rules.length > 1 ? 's' : ''} {row.rules.join(', ')}
+          Signal: test{row.rules.length > 1 ? 's' : ''} {row.rules.join(', ')}
         </div>
       )}
     </div>
@@ -103,7 +110,7 @@ export function ControlChart({
 }: {
   title: string;
   unit: string;
-  data: ControlChartPoint[];
+  data: StagePoint[];
 }) {
   // Lower zones are clamped to the LCL so the R chart (LCL = 0) never plots below zero.
   const rows: ChartRow[] = data.map((p, idx) => {
@@ -118,17 +125,26 @@ export function ControlChart({
     };
   });
 
-  // Fit the axis to the points and limit lines; weights and ranges are never negative.
-  const domain = fitDomain(rows.flatMap((r) => [r.value, r.ucl, r.lcl]), { floor: 0 });
+  // Fit the axis to every point (excluded ones too) and the limit lines.
+  const domain = fitDomain(
+    rows.flatMap((r) => [r.value ?? r.excludedValue ?? r.cl, r.ucl, r.lcl]),
+    { floor: 0 },
+  );
+  const hasExcluded = rows.some((r) => r.excludedValue !== null);
 
   return (
     <div className="rounded-lg border border-border bg-surface p-4 shadow-sm">
-      <h3 className="text-sm font-semibold text-foreground mb-3">{title}</h3>
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        {hasExcluded && (
+          <span className="text-xs text-muted">✕ excluded subgroup (not used for the limits)</span>
+        )}
+      </div>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={rows} margin={{ top: 8, right: 24, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-            {/* Only 5 dates are labelled to avoid crowding; hover a point for its date. */}
+            {/* Subgroup numbers, as in the study; hover a point for its production date. */}
             <XAxis
               dataKey="idx"
               fontSize={12}
@@ -136,7 +152,7 @@ export function ControlChart({
               interval={0}
               // Room for the first/last labels, which are centred on the end points.
               padding={{ left: 16, right: 16 }}
-              tickFormatter={(i: number) => rows[i]?.label ?? ''}
+              tickFormatter={(i: number) => String(rows[i]?.number ?? '')}
             />
             <YAxis fontSize={12} unit={unit} width={64} domain={domain} allowDataOverflow />
             <Tooltip content={<ChartTooltip unit={unit} />} />
@@ -144,37 +160,27 @@ export function ControlChart({
             <ZoneLine dataKey="plus1" />
             <ZoneLine dataKey="minus1" />
             <ZoneLine dataKey="minus2" />
+            <Line type="monotone" dataKey="ucl" stroke="#dc2626" strokeDasharray="4 4" dot={false} name="UCL" />
+            <Line type="monotone" dataKey="cl" stroke="#7fb894" strokeDasharray="4 4" dot={false} name="CL" />
+            <Line type="monotone" dataKey="lcl" stroke="#dc2626" strokeDasharray="4 4" dot={false} name="LCL" />
+            {/* Retained subgroups; the line breaks where a subgroup was excluded. */}
             <Line
-              type="monotone"
-              dataKey="ucl"
-              stroke="#dc2626"
-              strokeDasharray="4 4"
-              dot={false}
-              name="UCL"
-            />
-            <Line
-              type="monotone"
-              dataKey="cl"
-              stroke="#7fb894"
-              strokeDasharray="4 4"
-              dot={false}
-              name="CL"
-            />
-            <Line
-              type="monotone"
-              dataKey="lcl"
-              stroke="#dc2626"
-              strokeDasharray="4 4"
-              dot={false}
-              name="LCL"
-            />
-            <Line
-              type="monotone"
+              type="linear"
               dataKey="value"
               stroke="#15803d"
               strokeWidth={2}
               dot={<ValueDot />}
               name={title}
+              isAnimationActive={false}
+            />
+            <Line
+              type="linear"
+              dataKey="excludedValue"
+              stroke="none"
+              dot={<ExcludedMark />}
+              activeDot={false}
+              legendType="none"
+              isAnimationActive={false}
             />
           </LineChart>
         </ResponsiveContainer>

@@ -2,7 +2,6 @@ import {
   IsDateString,
   IsInt,
   IsNotEmpty,
-  IsOptional,
   IsString,
   MaxLength,
   Min,
@@ -30,9 +29,8 @@ export class CreateColourBatchDto {
   @MaxLength(64)
   batchLabel!: string;
 
-  @IsOptional()
   @IsDateString()
-  productionDate?: string | null;
+  productionDate!: string;
 
   @IsInt()
   @Min(1)

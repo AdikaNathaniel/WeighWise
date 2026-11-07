@@ -2,8 +2,8 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestj
 import {
   CreateColourBatchDto,
   CreateSubgroupDto,
-  ExcludeSubgroupDto,
   ImportSubgroupsDto,
+  ReviewSubgroupDto,
   UpdateColourBatchDto,
   UpdateSubgroupDto,
 } from '@app/common';
@@ -56,16 +56,16 @@ export class GatewayController {
     return this.gatewayService.deleteSubgroup(id);
   }
 
-  /** Records an assignable-cause review and excludes the subgroup from the revised limits. */
-  @Post('subgroups/:id/exclusion')
-  excludeSubgroup(@Param('id') id: string, @Body() dto: ExcludeSubgroupDto) {
-    return this.gatewayService.excludeSubgroup(id, dto);
+  /** Records the investigation of a subgroup's signal; a confirmed cause may exclude it. */
+  @Post('subgroups/:id/review')
+  reviewSubgroup(@Param('id') id: string, @Body() dto: ReviewSubgroupDto) {
+    return this.gatewayService.reviewSubgroup(id, dto);
   }
 
-  /** Reinstates an excluded subgroup; its review stays in the revision history. */
-  @Delete('subgroups/:id/exclusion')
-  reinstateSubgroup(@Param('id') id: string) {
-    return this.gatewayService.reinstateSubgroup(id);
+  /** Reopens a review (an excluded subgroup is reinstated); the review stays in the history. */
+  @Delete('subgroups/:id/review')
+  reopenReview(@Param('id') id: string) {
+    return this.gatewayService.reopenReview(id);
   }
 
   @Get('dashboard')

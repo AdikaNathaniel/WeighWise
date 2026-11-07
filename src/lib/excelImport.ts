@@ -25,6 +25,8 @@ export interface ParseResult {
   validGroups: SubgroupGroup[];
   invalidGroups: InvalidGroup[];
   rowErrors: RowError[];
+  /** Production dates shared by more than one valid subgroup — possibly a typing error. */
+  duplicateDates?: string[];
 }
 
 function normalizeHeader(header: string): string {
@@ -85,12 +87,49 @@ function toIsoDate(value: unknown): string | null {
   return null;
 }
 
+/** A package weight in grams; null unless it is a number greater than 0. */
 function toWeight(value: unknown): number | null {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-  const trimmed = String(value ?? '').trim();
-  if (!trimmed) return null;
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) ? parsed : null;
+  const parsed = typeof value === 'number' ? value : Number(String(value ?? '').trim() || NaN);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+/**
+ * Every subgroup on a chart must have the same size. The most common size in
+ * the file is taken as intended; a subgroup with fewer weights is incomplete
+ * (a missing value is never filled in or silently dropped) and one with a
+ * different size is set aside. Repeated production dates are reported.
+ */
+function enforceConsistentSize(result: ParseResult): ParseResult {
+  const counts = new Map<number, number>();
+  for (const g of result.validGroups) counts.set(g.weights.length, (counts.get(g.weights.length) ?? 0) + 1);
+  const expected = [...counts].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0]?.[0];
+
+  const validGroups: SubgroupGroup[] = [];
+  const invalidGroups = [...result.invalidGroups];
+  for (const g of result.validGroups) {
+    if (g.weights.length === expected) {
+      validGroups.push(g);
+      continue;
+    }
+    invalidGroups.push({
+      productionDate: g.productionDate,
+      count: g.weights.length,
+      rowNumbers: g.rowNumbers,
+      reason:
+        g.weights.length < (expected ?? 0)
+          ? `Incomplete subgroup — ${g.weights.length} of ${expected} weights. Enter the missing weight or remove the row.`
+          : `${g.weights.length} weights, but the other subgroups have ${expected}. Every subgroup on a chart must be the same size.`,
+    });
+  }
+
+  const seen = new Set<string>();
+  const duplicateDates = new Set<string>();
+  for (const g of validGroups) {
+    if (seen.has(g.productionDate)) duplicateDates.add(g.productionDate);
+    seen.add(g.productionDate);
+  }
+  invalidGroups.sort((a, b) => a.productionDate.localeCompare(b.productionDate));
+  return { ...result, validGroups, invalidGroups, duplicateDates: [...duplicateDates] };
 }
 
 function isEmptyCell(value: unknown): boolean {
@@ -157,7 +196,7 @@ function parseWideRows(
       if (isEmptyCell(raw)) continue; // unused sample slot for this subgroup
       const weight = toWeight(raw);
       if (weight === null) {
-        rowErrors.push({ rowNumber, reason: `Unrecognized weight value "${String(raw)}".` });
+        rowErrors.push({ rowNumber, reason: `Weight "${String(raw)}" is not a number greater than 0.` });
         return;
       }
       weights.push(weight);
@@ -199,7 +238,7 @@ function parseLongRows(
 
     const weight = toWeight(rawWeight);
     if (weight === null) {
-      rowErrors.push({ rowNumber, reason: `Unrecognized weight value "${String(rawWeight)}".` });
+      rowErrors.push({ rowNumber, reason: `Weight "${String(rawWeight)}" is not a number greater than 0.` });
       return;
     }
 
@@ -255,7 +294,9 @@ export function parseWorkbook(buffer: ArrayBuffer): ParseResult {
     };
   }
 
-  return sampleCols.length > 0
-    ? parseWideRows(rows, dateCol, sampleCols)
-    : parseLongRows(rows, dateCol, weightCol!);
+  return enforceConsistentSize(
+    sampleCols.length > 0
+      ? parseWideRows(rows, dateCol, sampleCols)
+      : parseLongRows(rows, dateCol, weightCol!),
+  );
 }

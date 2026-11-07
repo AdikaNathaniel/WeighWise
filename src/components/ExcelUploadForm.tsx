@@ -67,7 +67,9 @@ export function ExcelUploadForm({
         <strong>Production date</strong> + <strong>Weight (g)</strong> with one row per package
         (rows sharing a date are grouped into one subgroup), or <strong>Production date</strong> +{' '}
         <strong>Sample 1 (g)</strong>, <strong>Sample 2 (g)</strong>, etc. with one row per
-        subgroup — the SPC template layout. Either way, subgroups need 2–10 packages.
+        subgroup — the SPC template layout. Either way, every subgroup must have the same number
+        of packages (2–10), each weighing more than 0 g; rows with a missing weight are listed for
+        correction rather than imported.
       </p>
       <p className="rounded-md border border-border bg-primary-soft px-3 py-2 text-sm text-primary-hover">
         An upload <strong>replaces</strong> the subgroups used for the charts and calculations
@@ -110,14 +112,14 @@ export function ExcelUploadForm({
                 </thead>
                 <tbody>
                   {parseResult.validGroups.map((g) => (
-                    <tr key={g.productionDate} className="border-t border-border">
+                    <tr key={`ok-${g.rowNumbers.join('-')}`} className="border-t border-border">
                       <td className="py-1 pr-4">{g.productionDate}</td>
                       <td className="py-1 pr-4">{g.weights.length}</td>
                       <td className="py-1 text-green-700">Ready</td>
                     </tr>
                   ))}
                   {parseResult.invalidGroups.map((g) => (
-                    <tr key={g.productionDate} className="border-t border-border">
+                    <tr key={`skip-${g.rowNumbers.join('-')}`} className="border-t border-border">
                       <td className="py-1 pr-4">{g.productionDate}</td>
                       <td className="py-1 pr-4">{g.count}</td>
                       <td className="py-1 text-red-600" title={g.reason}>
@@ -128,6 +130,14 @@ export function ExcelUploadForm({
                 </tbody>
               </table>
             </div>
+          )}
+
+          {(parseResult.duplicateDates?.length ?? 0) > 0 && (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              More than one subgroup has the production date{' '}
+              {parseResult.duplicateDates!.join(', ')}. Check the file before importing; import
+              only if these subgroups really come from the same day.
+            </p>
           )}
 
           {parseResult.validGroups.length > 0 && (

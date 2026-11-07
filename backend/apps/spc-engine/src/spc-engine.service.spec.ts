@@ -1,4 +1,4 @@
-import { ColourBatch, Subgroup, SubgroupExclusion } from '@app/common';
+import { ColourBatch, Subgroup, SubgroupReview } from '@app/common';
 import { SpcEngineService } from './spc-engine.service.js';
 
 // Batches 1–15 from Tom_Brown_Colour_P_Chart_Calculator.xlsx: [n, d]
@@ -151,7 +151,8 @@ describe('SpcEngineService.computeSummary — assignable-cause exclusions', () =
       mean: weights.reduce((a, b) => a + b, 0) / weights.length,
       range: Math.max(...weights) - Math.min(...weights),
       createdAt: '2026-07-10T00:00:00Z',
-      exclusion: excluded ? ({ id: `x-${id}` } as SubgroupExclusion) : null,
+      review: null,
+      exclusion: excluded ? ({ id: `x-${id}` } as SubgroupReview) : null,
     };
   }
 

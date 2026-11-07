@@ -1,48 +1,57 @@
 /**
- * Assignable causes from the cause-and-effect (fishbone) diagram for
- * underweight Tom Brown packages, grouped by 6M category. A review must name
- * one of these causes, or "Other" with the details in what was found.
+ * Assignable causes for the Tom Brown filling and packaging operation, per
+ * the Review Signal design guide: five primary categories, each with the
+ * specific causes that can be selected (several may apply). A general process
+ * weakness is not a cause — only a specific event affecting the batch.
  * Keep in sync with backend/libs/common/src/constants/assignable-causes.ts.
  */
 export const ASSIGNABLE_CAUSES = {
-  Man: [
-    'Operator has not been trained in weighing',
-    'Filling quantity is estimated by judgement',
-    'Weight is not checked before stapling',
+  'Filling method': [
+    'Scoop size or scoop count varied within the batch',
+    'Product was added based on visual judgement',
+    'Product was removed to allow the package to be sealed',
+    'Standard filling procedure was not followed',
+    'Filling occurred without routine weight verification',
   ],
-  Machine: [
-    'Scale divisions cannot accurately show the 495–505 g range',
-    'Scale displays pounds and ounces',
-    'No controlled filling equipment',
+  'Personnel and workload': [
+    'An additional or temporary operator joined',
+    'An operator was unfamiliar with the procedure',
+    'An urgent order caused rushing',
+    'Packaging continued overnight',
+    'Fatigue affected filling',
   ],
-  Method: [
-    'Scoop quantity varies between packages',
-    'Folding and stapling reduce usable package quantity',
-    'No standard filling and weighing procedure',
+  'Weighing and measurement': [
+    'Packages were not weighed',
+    'The scale was not tared',
+    'Final weight was not verified',
+    'The pounds and ounces display made the gram target difficult to interpret',
+    'Weights were not recorded',
   ],
-  Material: [
-    'Inadequate sachet size for the target weight',
-    'Sachet capacity does not allow enough closing space',
+  'Packaging and sealing': [
+    'The sachet had insufficient sealing space',
+    'Product was removed before sealing',
+    'A different or smaller sachet was used',
+    'The agreed sealing method was not followed',
   ],
-  Measurement: [
-    'No acceptable weight range is used',
-    'Individual packages are not weighed',
-    'Package weights are not recorded or reviewed',
-  ],
-  Environment: [
-    'Powder loss from uncontrolled airflow',
-    'Air in powder reduces weight per scoop',
-    'Trapped air reduces usable sachet capacity',
-  ],
+  'Other confirmed cause': ['Another confirmed batch-specific event (described in the findings)'],
 } as const satisfies Record<string, readonly string[]>;
 
-export type AssignableCauseCategory = keyof typeof ASSIGNABLE_CAUSES | 'Other';
+export type AssignableCauseCategory = keyof typeof ASSIGNABLE_CAUSES;
 
-/** Cause recorded when the finding is not on the diagram (category "Other"). */
-export const OTHER_CAUSE = 'Other (described in findings)';
+/** What the investigation reviewed before reaching its outcome. */
+export const EVIDENCE_TYPES = [
+  'Discussion with processor',
+  'Direct observation',
+  'Production record',
+  'Scale examination',
+  'Package examination',
+  'Other evidence',
+] as const;
+
+export const REVIEW_OUTCOMES = ['confirmed', 'possible', 'none'] as const;
+export type ReviewOutcome = (typeof REVIEW_OUTCOMES)[number];
 
 export function isKnownCause(category: string, cause: string): boolean {
-  if (category === 'Other') return cause === OTHER_CAUSE;
   const causes = (ASSIGNABLE_CAUSES as Record<string, readonly string[]>)[category];
   return Boolean(causes?.includes(cause));
 }

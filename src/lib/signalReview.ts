@@ -1,5 +1,6 @@
 import { DIRECTION_LABELS, RuleId, RulePoint, RuleSignal, SignalDirection } from './nelsonRules';
-import { Subgroup } from '@/types/spc';
+import type { ReviewOutcome } from './assignableCauses';
+import type { Subgroup } from '@/types/spc';
 
 export type ChartKind = 'x-bar' | 'r';
 
@@ -78,6 +79,12 @@ export function buildReviewItems(allSubgroups: Subgroup[], charts: ChartSignals[
     }))
     .sort((a, b) => a.number - b.number);
 }
+
+export const OUTCOME_LABELS: Record<ReviewOutcome, string> = {
+  confirmed: 'Specific assignable cause confirmed',
+  possible: 'Possible cause, not confirmed',
+  none: 'No assignable cause identified',
+};
 
 const LIMIT_NAMES = { ucl: 'UCL', cl: 'CL', lcl: 'LCL' } as const;
 

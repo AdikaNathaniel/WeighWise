@@ -1,16 +1,29 @@
-/** An assignable-cause review that excludes its subgroup from the revised limits. */
-export interface SubgroupExclusion {
+import type { ReviewOutcome } from '@/lib/assignableCauses';
+
+/**
+ * The investigation of one subgroup's signal. Every outcome is recorded; only
+ * a confirmed, evidenced cause may exclude the subgroup from the revised limits.
+ */
+export interface SubgroupReview {
   id: string;
+  /** The signal that prompted the review, as seen when it was investigated. */
   chart: 'x-bar' | 'r';
   rule: number;
   direction: string;
   value: number;
   limitType: 'ucl' | 'cl' | 'lcl';
   trialLimit: number;
-  category: string;
-  cause: string;
-  found: string;
-  correctiveAction: string;
+  outcome: ReviewOutcome;
+  /** True when the whole subgroup is left out of the revised limits. */
+  excluded: boolean;
+  /** Primary cause category (the suspected one when the outcome is "possible"). */
+  category: string | null;
+  causes: string[];
+  evidence: string[];
+  found: string | null;
+  correctiveAction: string | null;
+  followUp: string | null;
+  reviewer: string | null;
   investigatedOn: string;
   createdAt: string;
 }
@@ -23,8 +36,10 @@ export interface Subgroup {
   mean: number;
   range: number;
   createdAt: string;
-  /** The active assignable-cause review, or null when the subgroup counts toward the limits. */
-  exclusion: SubgroupExclusion | null;
+  /** The active review of this subgroup's signal, whatever its outcome. */
+  review: SubgroupReview | null;
+  /** The active review when it excludes the subgroup; null when the subgroup counts toward the limits. */
+  exclusion: SubgroupReview | null;
 }
 
 export interface ControlLimits {
@@ -71,6 +86,8 @@ export interface DashboardData {
   subgroups: Subgroup[];
   /** Revised limits: excluded subgroups are left out of the calculation. */
   summary: SpcSummary;
+  /** Limits after the R-chart investigation only (chart 2): just the R-chart exclusions are left out. */
+  rStageSummary: SpcSummary;
   /** Trial limits: every subgroup counts, as before any assignable-cause review. */
   trialSummary: SpcSummary;
   status: ControlStatus;
@@ -88,19 +105,26 @@ export interface UpdateSubgroupInput {
   weights: number[];
 }
 
-export interface ExcludeSubgroupInput {
+export interface ReviewSubgroupInput {
   chart: 'x-bar' | 'r';
   rule: number;
   direction: string;
   value: number;
   limitType: 'ucl' | 'cl' | 'lcl';
   trialLimit: number;
-  category: string;
-  cause: string;
-  found: string;
-  correctiveAction: string;
+  outcome: ReviewOutcome;
+  /** Exclude the whole subgroup (true) or retain it (false). */
+  excluded: boolean;
+  category: string | null;
+  causes: string[];
+  evidence: string[];
+  found: string | null;
+  correctiveAction: string | null;
+  followUp: string | null;
+  reviewer: string;
   investigatedOn: string;
-  confirmed: true;
+  /** Required (true) when the subgroup is excluded. */
+  confirmed?: boolean;
 }
 
 export interface ImportSubgroupsResult {

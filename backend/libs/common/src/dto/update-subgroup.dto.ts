@@ -5,6 +5,7 @@ import {
   IsDateString,
   IsInt,
   IsNumber,
+  IsPositive,
   Max,
   Min,
   Validate,
@@ -38,6 +39,7 @@ export class UpdateSubgroupDto {
   @ArrayMinSize(2)
   @ArrayMaxSize(10)
   @IsNumber({}, { each: true })
+  @IsPositive({ each: true })
   @Validate(WeightsMatchSampleSizeConstraint)
   weights!: number[];
 }

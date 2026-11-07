@@ -4,7 +4,7 @@ import {
   INGESTION_PATTERNS,
   CreateColourBatchDto,
   CreateSubgroupDto,
-  ExcludeSubgroupDto,
+  ReviewSubgroupDto,
   ImportSubgroupsDto,
   UpdateColourBatchDto,
   UpdateSubgroupDto,
@@ -55,14 +55,14 @@ export class IngestionController {
     return this.ingestionService.restoreSubgroups(payload.archivedAt);
   }
 
-  @MessagePattern(INGESTION_PATTERNS.EXCLUDE_SUBGROUP)
-  excludeSubgroup(@Payload() payload: { id: string; dto: ExcludeSubgroupDto }) {
-    return this.ingestionService.excludeSubgroup(payload.id, payload.dto);
+  @MessagePattern(INGESTION_PATTERNS.REVIEW_SUBGROUP)
+  reviewSubgroup(@Payload() payload: { id: string; dto: ReviewSubgroupDto }) {
+    return this.ingestionService.reviewSubgroup(payload.id, payload.dto);
   }
 
-  @MessagePattern(INGESTION_PATTERNS.REINSTATE_SUBGROUP)
-  reinstateSubgroup(@Payload() id: string) {
-    return this.ingestionService.reinstateSubgroup(id);
+  @MessagePattern(INGESTION_PATTERNS.REOPEN_REVIEW)
+  reopenReview(@Payload() id: string) {
+    return this.ingestionService.reopenReview(id);
   }
 
   @MessagePattern(INGESTION_PATTERNS.CREATE_COLOUR_BATCH)

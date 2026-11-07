@@ -16,12 +16,16 @@ function parseWholeNumber(raw: string): number | null {
   return Number(trimmed);
 }
 
-/** Mirrors the workbook's "CHECK INPUT" rules: n ≥ 1, 0 ≤ d ≤ n, whole numbers only. */
+/**
+ * Mirrors the workbook's "CHECK INPUT" rules — n ≥ 1, 0 ≤ d ≤ n, whole numbers
+ * only — plus a production date, so each signal can be traced to its batch.
+ */
 export function validateBatchDraft(
   draft: BatchDraft,
 ): { input: ColourBatchInput; error: null } | { input: null; error: string } {
   const batchLabel = draft.batchLabel.trim();
   if (!batchLabel) return { input: null, error: 'Enter a batch number.' };
+  if (!draft.productionDate) return { input: null, error: 'Enter the production date.' };
 
   const n = parseWholeNumber(draft.samplesInspected);
   if (n === null || n < 1) {
@@ -42,7 +46,7 @@ export function validateBatchDraft(
   return {
     input: {
       batchLabel,
-      productionDate: draft.productionDate || null,
+      productionDate: draft.productionDate,
       samplesInspected: n,
       nonconforming: d,
     },

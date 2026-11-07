@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { updateSubgroup } from '@/lib/api';
+import { formatBatchDate } from '@/lib/pChartFormat';
 import { Subgroup } from '@/types/spc';
+import { parseWeights } from './SubgroupForm';
 
 const MIN_N = 2;
 const MAX_N = 10;
@@ -11,12 +13,7 @@ const inputClass =
   'rounded-md border border-border bg-white px-3 py-1.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20';
 
 function formatOptionLabel(s: Subgroup): string {
-  const date = new Date(s.productionDate).toLocaleDateString(undefined, {
-    month: 'short',
-    day: '2-digit',
-    year: 'numeric',
-  });
-  return `${date} — n=${s.sampleSize}, mean ${s.mean.toFixed(2)}g`;
+  return `${formatBatchDate(s.productionDate)} — n=${s.sampleSize}, mean ${s.mean.toFixed(2)}g`;
 }
 
 export function SubgroupEditor({
@@ -74,9 +71,9 @@ export function SubgroupEditor({
     setError(null);
     setSuccess(false);
 
-    const parsedWeights = weights.map((w) => Number(w));
-    if (parsedWeights.some((w) => !Number.isFinite(w) || weights.some((raw) => raw.trim() === ''))) {
-      setError('Enter a valid weight for every sample.');
+    const parsedWeights = parseWeights(weights);
+    if (!parsedWeights) {
+      setError('Enter a weight greater than 0 g for every sample.');
       return;
     }
 

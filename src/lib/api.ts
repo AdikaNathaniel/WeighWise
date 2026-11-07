@@ -2,12 +2,12 @@ import {
   ArchivedSubgroupSet,
   CreateSubgroupInput,
   DashboardData,
-  ExcludeSubgroupInput,
   ImportSubgroupsResult,
   RestoreSubgroupsResult,
   PaginatedSubgroups,
+  ReviewSubgroupInput,
   Subgroup,
-  SubgroupExclusion,
+  SubgroupReview,
   UpdateSubgroupInput,
 } from '@/types/spc';
 import {
@@ -21,12 +21,27 @@ import {
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL ?? 'http://localhost:3001';
 
+// A sleeping Render instance can take about a minute to wake, so allow for
+// that, but never leave the page on "Loading…" when the backend is down.
+const REQUEST_TIMEOUT_MS = 90_000;
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${GATEWAY_URL}${path}`, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
-    cache: 'no-store',
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${GATEWAY_URL}${path}`, {
+      ...init,
+      headers: { 'Content-Type': 'application/json', ...init?.headers },
+      cache: 'no-store',
+      signal: init?.signal ?? AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'TimeoutError') {
+      throw new Error(
+        'The ProcessWise server did not respond. It may be starting up or offline — try again in a minute.',
+      );
+    }
+    throw err;
+  }
 
   if (!res.ok) {
     const body = await res.text().catch(() => '');
@@ -81,17 +96,17 @@ export function deleteSubgroup(id: string): Promise<{ id: string }> {
   return request<{ id: string }>(`/subgroups/${id}`, { method: 'DELETE' });
 }
 
-/** Records an assignable-cause review; the subgroup is left out of the revised limits. */
-export function excludeSubgroup(id: string, input: ExcludeSubgroupInput): Promise<SubgroupExclusion> {
-  return request<SubgroupExclusion>(`/subgroups/${id}/exclusion`, {
+/** Records the investigation of a subgroup's signal; a confirmed cause may exclude it. */
+export function reviewSubgroup(id: string, input: ReviewSubgroupInput): Promise<SubgroupReview> {
+  return request<SubgroupReview>(`/subgroups/${id}/review`, {
     method: 'POST',
     body: JSON.stringify(input),
   });
 }
 
-/** Puts an excluded subgroup back into the limits; its review stays in the history. */
-export function reinstateSubgroup(id: string): Promise<{ id: string; reinstated: number }> {
-  return request<{ id: string; reinstated: number }>(`/subgroups/${id}/exclusion`, {
+/** Reopens a review (an excluded subgroup counts toward the limits again); it stays in the history. */
+export function reopenReview(id: string): Promise<{ id: string; reopened: number }> {
+  return request<{ id: string; reopened: number }>(`/subgroups/${id}/review`, {
     method: 'DELETE',
   });
 }

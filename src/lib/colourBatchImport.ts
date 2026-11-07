@@ -148,14 +148,16 @@ export function parseColourWorkbook(
         continue;
       }
 
-      let productionDate: string | null = null;
+      // Every batch needs its production date so a signal can be traced to it.
       const rawDate = cols.date === null ? '' : row[cols.date];
-      if (!isEmpty(rawDate)) {
-        productionDate = toIsoDate(rawDate);
-        if (!productionDate) {
-          skip(`Unrecognised production date "${String(rawDate)}".`);
-          continue;
-        }
+      if (isEmpty(rawDate)) {
+        skip('Missing production date.');
+        continue;
+      }
+      const productionDate = toIsoDate(rawDate);
+      if (!productionDate) {
+        skip(`Unrecognised production date "${String(rawDate)}".`);
+        continue;
       }
 
       if (seen.has(label)) {

@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ProcessWise",
-  description: "Weight and colour SPC dashboard",
+  title: "ProcessWise SPC",
+  description: "Measure. Investigate. Improve.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

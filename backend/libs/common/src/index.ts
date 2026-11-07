@@ -8,4 +8,4 @@ export * from './dto/import-subgroups.dto.js';
 export * from './types/p-chart.types.js';
 export * from './dto/create-colour-batch.dto.js';
 export * from './dto/update-colour-batch.dto.js';
-export * from './dto/exclude-subgroup.dto.js';
+export * from './dto/review-subgroup.dto.js';

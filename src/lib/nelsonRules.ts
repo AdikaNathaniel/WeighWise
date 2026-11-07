@@ -18,8 +18,8 @@ export const ALL_RULES: RuleId[] = [1, 2, 3, 4, 5, 6, 7, 8];
  */
 export const RANGE_CHART_RULES: RuleId[] = [1, 2, 3, 4];
 
-/** The Tom Brown colour p-chart is judged on rule 1 (a point beyond the 3σ limits) only. */
-export const P_CHART_RULES: RuleId[] = [1];
+/** The colour p-chart is judged on tests 1–4, as for an R chart (Minitab applies these to attribute charts). */
+export const P_CHART_RULES: RuleId[] = [1, 2, 3, 4];
 
 export const RULE_DESCRIPTIONS: Record<RuleId, { title: string; detail: string }> = {
   1: { title: 'One point beyond 3σ', detail: 'A point is above the UCL or below the LCL.' },

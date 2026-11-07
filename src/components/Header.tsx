@@ -13,8 +13,8 @@ export function Header() {
           className="h-10 w-10 rounded-lg object-cover ring-2 ring-white/30"
         />
         <div>
-          <h1 className="text-lg font-semibold leading-tight">ProcessWise</h1>
-          <p className="text-xs text-white/80 leading-tight">Weight &amp; Colour SPC Dashboard</p>
+          <h1 className="text-lg font-semibold leading-tight">ProcessWise SPC</h1>
+          <p className="text-xs text-white/80 leading-tight">Measure. Investigate. Improve.</p>
         </div>
       </div>
     </header>
