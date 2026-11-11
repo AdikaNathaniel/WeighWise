@@ -1,4 +1,4 @@
-import { ALL_RULES, RULE_DESCRIPTIONS, RuleSignal } from '@/lib/nelsonRules';
+import { ALL_RULES, isInvestigated, RULE_DESCRIPTIONS, RuleSignal } from '@/lib/nelsonRules';
 
 export interface SignalPointInfo {
   /** How the point is named in the list, e.g. a production date or "Batch 4 (22 Aug 2026)". */
@@ -39,24 +39,29 @@ function toRows(groups: SignalGroup[]): Row[] {
   );
 }
 
-export function RuleSignalList({
-  groups,
-  pointHeading = 'Dates flagged',
+const TONES = {
+  alarm: {
+    rule: 'text-red-700',
+    tag: 'border-red-200 bg-red-50 text-red-800',
+  },
+  warning: {
+    rule: 'text-amber-700',
+    tag: 'border-amber-200 bg-amber-50 text-amber-900',
+  },
+} as const;
+
+function RowsTable({
+  rows,
+  showChart,
+  pointHeading,
+  tone,
 }: {
-  groups: SignalGroup[];
-  pointHeading?: string;
+  rows: Row[];
+  showChart: boolean;
+  pointHeading: string;
+  tone: keyof typeof TONES;
 }) {
-  const showChart = groups.some((g) => g.chart);
-  const rows = toRows(groups);
-
-  if (rows.length === 0) {
-    return (
-      <p className="rounded-md border border-primary-soft bg-primary-soft px-3 py-2 text-sm text-primary-hover">
-        No enabled rule is triggered — the process shows no special-cause signals.
-      </p>
-    );
-  }
-
+  const colours = TONES[tone];
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -75,7 +80,7 @@ export function RuleSignalList({
               className="border-b border-border last:border-0 align-top"
             >
               {showChart && <td className="py-1.5 pr-3 whitespace-nowrap">{row.chart}</td>}
-              <td className="py-1.5 pr-3 font-semibold text-red-700 whitespace-nowrap">
+              <td className={`py-1.5 pr-3 font-semibold whitespace-nowrap ${colours.rule}`}>
                 Rule {row.rule}
               </td>
               <td className="py-1.5 pr-3">
@@ -90,7 +95,7 @@ export function RuleSignalList({
                   {row.labels.map((label, i) => (
                     <li
                       key={i}
-                      className="rounded-md border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-800 whitespace-nowrap"
+                      className={`rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap ${colours.tag}`}
                     >
                       {label}
                     </li>
@@ -104,10 +109,58 @@ export function RuleSignalList({
           ))}
         </tbody>
       </table>
-      <p className="mt-2 text-xs text-muted">
-        Listed points are where each test fails, as reported by Minitab. On the chart, every
-        point in the triggering sequence is highlighted.
-      </p>
+    </div>
+  );
+}
+
+/**
+ * Two lists: points beyond the control limits, which are investigated, and
+ * pattern warnings from the other enabled tests, which are only watched.
+ */
+export function RuleSignalList({
+  groups,
+  pointHeading = 'Dates flagged',
+}: {
+  groups: SignalGroup[];
+  pointHeading?: string;
+}) {
+  const showChart = groups.some((g) => g.chart);
+  const rows = toRows(groups);
+  const alarms = rows.filter((r) => isInvestigated(r.rule));
+  const warnings = rows.filter((r) => !isInvestigated(r.rule));
+
+  return (
+    <div className="space-y-4">
+      <section className="space-y-2">
+        <h4 className="text-sm font-semibold text-foreground">
+          Outside the control limits — investigate
+        </h4>
+        {alarms.length === 0 ? (
+          <p className="rounded-md border border-primary-soft bg-primary-soft px-3 py-2 text-sm text-primary-hover">
+            No point is above the UCL or below the LCL — nothing to investigate.
+          </p>
+        ) : (
+          <RowsTable rows={alarms} showChart={showChart} pointHeading={pointHeading} tone="alarm" />
+        )}
+      </section>
+
+      {warnings.length > 0 && (
+        <section className="space-y-2">
+          <h4 className="text-sm font-semibold text-foreground">
+            Pattern warnings — watch, no investigation needed
+          </h4>
+          <p className="text-xs text-muted">
+            These points are inside the limits but form a pattern (a shift, trend or unusual
+            run) that can mean the process is starting to drift. Keep an eye on the next
+            batches; they do not affect the in-control status.
+          </p>
+          <RowsTable rows={warnings} showChart={showChart} pointHeading={pointHeading} tone="warning" />
+          <p className="text-xs text-muted">
+            Listed points are where each test fails, as reported by Minitab. On the chart, every
+            point in the triggering sequence is highlighted.
+          </p>
+        </section>
+      )}
     </div>
   );
 }

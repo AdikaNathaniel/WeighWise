@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useSyncExternalStore } from 'react';
-import { ALL_RULES, RuleId } from './nelsonRules';
+import { ALL_RULES, isInvestigated, RuleId } from './nelsonRules';
 
 // Which Nelson rules are switched on is a per-browser preference, shared by
 // every chart in the app.
@@ -36,9 +36,11 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
+// The investigated rules (points beyond the limits) can never be switched off;
+// only the pattern-warning rules are optional.
 function parse(value: string): RuleId[] {
   const ids = value.split(',').map(Number);
-  return ALL_RULES.filter((r) => ids.includes(r));
+  return ALL_RULES.filter((r) => isInvestigated(r) || ids.includes(r));
 }
 
 export function useEnabledRules(): [RuleId[], (rule: RuleId, on: boolean) => void] {
@@ -46,7 +48,7 @@ export function useEnabledRules(): [RuleId[], (rule: RuleId, on: boolean) => voi
 
   const setRule = useCallback((rule: RuleId, on: boolean) => {
     const current = new Set(parse(read()));
-    if (on) current.add(rule);
+    if (on || isInvestigated(rule)) current.add(rule);
     else current.delete(rule);
     write(ALL_RULES.filter((r) => current.has(r)).join(','));
   }, []);

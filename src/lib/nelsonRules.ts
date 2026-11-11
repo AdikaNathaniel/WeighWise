@@ -21,6 +21,27 @@ export const RANGE_CHART_RULES: RuleId[] = [1, 2, 3, 4];
 /** The colour p-chart is judged on tests 1–4, as for an R chart (Minitab applies these to attribute charts). */
 export const P_CHART_RULES: RuleId[] = [1, 2, 3, 4];
 
+/**
+ * Only a point above the UCL or below the LCL (rule 1) is investigated and
+ * decides whether the process is in control. It belongs to one subgroup, so
+ * an assignable cause can be looked for in that batch. Rules 2–8 detect
+ * patterns (shifts, trends) and are shown as warnings to watch — they never
+ * enter the investigation queue or change the in-control status.
+ */
+export const INVESTIGATED_RULES: RuleId[] = [1];
+
+export function isInvestigated(rule: RuleId): boolean {
+  return INVESTIGATED_RULES.includes(rule);
+}
+
+/** Splits signals into those to investigate (points beyond the limits) and pattern warnings. */
+export function splitSignals(signals: RuleSignal[]): { alarms: RuleSignal[]; warnings: RuleSignal[] } {
+  return {
+    alarms: signals.filter((s) => isInvestigated(s.rule)),
+    warnings: signals.filter((s) => !isInvestigated(s.rule)),
+  };
+}
+
 export const RULE_DESCRIPTIONS: Record<RuleId, { title: string; detail: string }> = {
   1: { title: 'One point beyond 3σ', detail: 'A point is above the UCL or below the LCL.' },
   2: {

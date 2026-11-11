@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { evenTicks, fitDomain } from '@/lib/chartDomain';
 import { formatBatchDate } from '@/lib/pChartFormat';
+import { isInvestigated } from '@/lib/nelsonRules';
 import { StagePoint } from '@/lib/reviewWorkflow';
 
 // Zone boundaries (±1σ, ±2σ) are derived from the 3σ limits: σ = (UCL − CL) / 3.
@@ -26,8 +27,10 @@ interface ChartRow extends StagePoint {
 function ValueDot(props: { cx?: number; cy?: number; payload?: ChartRow }) {
   const { cx, cy, payload } = props;
   if (cx === undefined || cy === undefined || !payload || payload.value === null) return null;
+  // Red: beyond the limits — investigate. Amber: pattern warning only — watch.
+  if (payload.rules.some(isInvestigated)) return <circle cx={cx} cy={cy} r={6} fill="#dc2626" stroke="#fff" strokeWidth={2} />;
   return payload.rules.length > 0 ? (
-    <circle cx={cx} cy={cy} r={6} fill="#dc2626" stroke="#fff" strokeWidth={2} />
+    <circle cx={cx} cy={cy} r={5} fill="#d97706" stroke="#fff" strokeWidth={2} />
   ) : (
     <circle cx={cx} cy={cy} r={4} fill="#15803d" stroke="none" />
   );
@@ -78,12 +81,24 @@ function ChartTooltip({
           Excluded — confirmed assignable cause; not used for these limits
         </div>
       )}
-      {row.rules.length > 0 && (
-        <div className="font-semibold text-red-600">
-          Signal: test{row.rules.length > 1 ? 's' : ''} {row.rules.join(', ')}
+      <SignalNote rules={row.rules} />
+    </div>
+  );
+}
+
+function SignalNote({ rules }: { rules: StagePoint['rules'] }) {
+  const warnings = rules.filter((r) => !isInvestigated(r));
+  return (
+    <>
+      {rules.some(isInvestigated) && (
+        <div className="font-semibold text-red-600">Outside the control limits — investigate</div>
+      )}
+      {warnings.length > 0 && (
+        <div className="font-semibold text-amber-700">
+          Pattern warning: test{warnings.length > 1 ? 's' : ''} {warnings.join(', ')} — watch
         </div>
       )}
-    </div>
+    </>
   );
 }
 

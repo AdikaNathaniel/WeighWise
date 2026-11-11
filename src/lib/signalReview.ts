@@ -1,4 +1,4 @@
-import { DIRECTION_LABELS, RuleId, RulePoint, RuleSignal, SignalDirection } from './nelsonRules';
+import { DIRECTION_LABELS, isInvestigated, RuleId, RulePoint, RuleSignal, SignalDirection } from './nelsonRules';
 import type { ReviewOutcome } from './assignableCauses';
 import type { Subgroup } from '@/types/spc';
 
@@ -40,8 +40,9 @@ function signalLimit(rule: RuleId, direction: SignalDirection, point: RulePoint)
 }
 
 /**
- * Collects the subgroups where an enabled test fails (Minitab's reported
- * points) on either chart, one item per subgroup in production order.
+ * Collects the subgroups to investigate on either chart — only points beyond
+ * the control limits; pattern warnings (rules 2–8) are never queued — one
+ * item per subgroup in production order.
  */
 export function buildReviewItems(allSubgroups: Subgroup[], charts: ChartSignals[]): ReviewItem[] {
   const numbers = new Map(allSubgroups.map((s, i) => [s.id, i + 1]));
@@ -49,6 +50,7 @@ export function buildReviewItems(allSubgroups: Subgroup[], charts: ChartSignals[
 
   for (const { chart, subgroups, points, signals } of charts) {
     for (const signal of signals) {
+      if (!isInvestigated(signal.rule)) continue;
       for (const i of signal.flagged) {
         const subgroup = subgroups[i];
         if (!subgroup) continue;

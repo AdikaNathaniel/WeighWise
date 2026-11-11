@@ -1,4 +1,4 @@
-import { detectSignals, RANGE_CHART_RULES, rulesByPoint } from './nelsonRules';
+import { detectSignals, RANGE_CHART_RULES, rulesByPoint, splitSignals } from './nelsonRules';
 import type { RuleId, RulePoint, RuleSignal } from './nelsonRules';
 import { buildReviewItems } from './signalReview';
 import type { ChartKind, ReviewItem } from './signalReview';
@@ -24,7 +24,7 @@ export interface StagePoint {
   ucl: number;
   cl: number;
   lcl: number;
-  /** Tests whose signals include this point (always empty when excluded). */
+  /** Tests whose signals include this point (always empty when excluded); rule 1 means beyond the limits. */
   rules: RuleId[];
 }
 
@@ -33,7 +33,12 @@ export interface ChartAnalysis {
   /** Retained subgroups in plotting order — the points the tests run on. */
   subgroups: Subgroup[];
   points: RulePoint[];
+  /** Every enabled test's signals. */
   signals: RuleSignal[];
+  /** Points beyond the control limits — investigated, and decide the in-control status. */
+  alarms: RuleSignal[];
+  /** Pattern signals (rules 2–8) — shown to watch, never investigated. */
+  warnings: RuleSignal[];
   /** Every subgroup, retained and excluded, at its original position. */
   chartData: StagePoint[];
 }
@@ -112,7 +117,7 @@ export function analyseChart(
     };
   });
 
-  return { chart, subgroups: retained, points, signals, chartData };
+  return { chart, subgroups: retained, points, signals, ...splitSignals(signals), chartData };
 }
 
 function makeStage(
@@ -130,8 +135,9 @@ function makeStage(
     excludedNumbers: all.flatMap((s, i) => (excludedIds.has(s.id) ? [i + 1] : [])),
     xBar,
     r,
-    rInControl: r.signals.length === 0,
-    xBarInControl: xBar.signals.length === 0,
+    // Only points beyond the limits take a chart out of control; pattern warnings do not.
+    rInControl: r.alarms.length === 0,
+    xBarInControl: xBar.alarms.length === 0,
   };
 }
 
@@ -150,8 +156,18 @@ export function buildStages(data: DashboardData, enabled: RuleId[]): ChartStage[
   return stages;
 }
 
-function flaggedCount(analysis: ChartAnalysis): number {
-  return new Set(analysis.signals.flatMap((s) => s.flagged)).size;
+function flaggedCount(signals: RuleSignal[]): number {
+  return new Set(signals.flatMap((s) => s.flagged)).size;
+}
+
+/** " 3 subgroups show pattern warnings to watch." — or nothing when there are none. */
+function warningNote(stage: ChartStage): string {
+  const n = new Set([
+    ...stage.xBar.warnings.flatMap((s) => s.flagged.map((i) => stage.xBar.subgroups[i]?.id)),
+    ...stage.r.warnings.flatMap((s) => s.flagged.map((i) => stage.r.subgroups[i]?.id)),
+  ]).size;
+  if (n === 0) return '';
+  return ` ${plural(n, 'subgroup')} ${n === 1 ? 'shows a pattern warning' : 'show pattern warnings'} to watch (no investigation needed).`;
 }
 
 function plural(n: number, word: string): string {
@@ -164,18 +180,18 @@ export function stageStatus(stage: ChartStage, phase: Phase): ProcessStatus {
     return {
       inControl,
       label: 'Process in control',
-      reason: 'No selected test is triggered on the X-bar or R chart.',
+      reason: `No point is outside the control limits on the X-bar or R chart.${warningNote(stage)}`,
     };
   }
   const retained = phase === 'complete' ? 'retained ' : '';
   const parts = [
-    stage.xBarInControl ? null : `${plural(flaggedCount(stage.xBar), `${retained}subgroup`)} on the X-bar chart`,
-    stage.rInControl ? null : `${plural(flaggedCount(stage.r), `${retained}subgroup`)} on the R chart`,
+    stage.xBarInControl ? null : `${plural(flaggedCount(stage.xBar.alarms), `${retained}subgroup`)} on the X-bar chart`,
+    stage.rInControl ? null : `${plural(flaggedCount(stage.r.alarms), `${retained}subgroup`)} on the R chart`,
   ].filter(Boolean);
   return {
     inControl,
     label: 'Process not in control',
-    reason: `Selected tests are triggered by ${parts.join(' and ')}.`,
+    reason: `Points outside the control limits: ${parts.join(' and ')}.`,
   };
 }
 
@@ -237,8 +253,8 @@ export function currentStageGuidance(workflow: Workflow): { text: string; action
       action: 'review-r',
       text:
         current.kind === 'trial'
-          ? 'The R chart has signals outside its trial limits. Investigate the R-chart signals before interpreting or revising the X-bar chart.'
-          : 'Signals remain on the revised R chart. Investigate them before the X-bar chart.',
+          ? 'The R chart has points outside its trial limits. Investigate them before interpreting or revising the X-bar chart.'
+          : 'Points remain outside the revised R-chart limits. Investigate them before the X-bar chart.',
     };
   }
   if (phase === 'x-bar') {
@@ -254,7 +270,7 @@ export function currentStageGuidance(workflow: Workflow): { text: string; action
   if (workflow.status.inControl) {
     return {
       action: 'monitor',
-      text: 'All retained subgroups are within the revised control limits and no selected test is triggered. Continue monitoring with new production data. Process capability may be considered only when specification limits are available and its other assumptions are met.',
+      text: 'All retained subgroups are within the revised control limits. Continue monitoring with new production data. Process capability may be considered only when specification limits are available and its other assumptions are met.',
     };
   }
   const lead =

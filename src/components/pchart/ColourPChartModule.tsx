@@ -8,7 +8,7 @@ import {
   restoreColourBatches,
 } from '@/lib/api';
 import { exportPChartCsv, exportPChartXlsx, formatBatchDate, INVESTIGATE_MESSAGE } from '@/lib/pChartFormat';
-import { detectSignals, P_CHART_RULES, RuleId, RuleSignal, rulesByPoint } from '@/lib/nelsonRules';
+import { detectSignals, isInvestigated, P_CHART_RULES, RuleId, RuleSignal, rulesByPoint } from '@/lib/nelsonRules';
 import { useEnabledRules } from '@/lib/useEnabledRules';
 import { ClearedColourBatch, PChartData } from '@/types/pChart';
 import { RuleSignalList } from '../RuleSignalList';
@@ -32,9 +32,9 @@ interface RuleAnalysis {
 }
 
 /**
- * The p-chart is judged on the selected tests among 1–4, as for an R chart.
- * A batch is out of control when any of them flags it, so batch status (and
- * the summary) come from the signals rather than the backend's rule-1 check.
+ * The p-chart is checked with the selected tests among 1–4, as for an R chart.
+ * A batch is out of control (and investigated) only when it is beyond its
+ * limits; tests 2–4 are pattern warnings shown on the chart and signal list.
  */
 function analyse(raw: PChartData, enabled: RuleId[]): RuleAnalysis {
   const signals = detectSignals(
@@ -44,7 +44,7 @@ function analyse(raw: PChartData, enabled: RuleId[]): RuleAnalysis {
   const rules = rulesByPoint(signals, raw.points.length);
   const points = raw.points.map((p, i) => ({
     ...p,
-    status: rules[i].length > 0 ? ('out-of-control' as const) : ('in-control' as const),
+    status: rules[i].some(isInvestigated) ? ('out-of-control' as const) : ('in-control' as const),
   }));
   const outOfControlCount = points.filter((p) => p.status === 'out-of-control').length;
   return {
@@ -304,15 +304,15 @@ export function ColourPChartModule() {
               <RuleToggles
                 enabled={enabledRules}
                 onChange={setRule}
-                note="The p-chart is checked with tests 1–4 only (whichever of them are selected); tests 5–8 apply to the X-bar chart."
+                note="The p-chart is checked with tests 1–4 only; tests 5–8 apply to the X-bar chart."
               />
               <PChart points={data.points} rules={analysis.rules} />
               <div className="rounded-lg border border-border bg-surface p-4">
                 <h3 className="text-sm font-semibold">Rule signals</h3>
                 <p className="text-xs text-muted mb-3">
                   The colour p-chart is checked with test{pChartRules.length === 1 ? '' : 's'}{' '}
-                  {pChartRules.length ? pChartRules.join(', ') : '— none selected'}. Each batch is
-                  judged against its own limits.
+                  {pChartRules.join(', ')}. Each batch is judged against its own limits; only
+                  batches outside them are investigated.
                 </p>
                 <RuleSignalList
                   pointHeading="Batches flagged"

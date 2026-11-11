@@ -12,7 +12,7 @@ import {
 } from 'recharts';
 import { PChartPoint } from '@/types/pChart';
 import { formatBatchDate } from '@/lib/pChartFormat';
-import { RuleId } from '@/lib/nelsonRules';
+import { isInvestigated, RuleId } from '@/lib/nelsonRules';
 import { evenTicks, fitDomain } from '@/lib/chartDomain';
 
 // Plotted values are percentages (0–100) so the axis and tooltip read as %.
@@ -36,8 +36,10 @@ function toPercent(fraction: number): number {
 function ProportionDot(props: { cx?: number; cy?: number; payload?: ChartRow }) {
   const { cx, cy, payload } = props;
   if (cx === undefined || cy === undefined || !payload) return null;
+  // Red: beyond the limits — investigate. Amber: pattern warning only — watch.
+  if (payload.rules.some(isInvestigated)) return <circle cx={cx} cy={cy} r={6} fill="#dc2626" stroke="#fff" strokeWidth={2} />;
   return payload.rules.length > 0 ? (
-    <circle cx={cx} cy={cy} r={6} fill="#dc2626" stroke="#fff" strokeWidth={2} />
+    <circle cx={cx} cy={cy} r={5} fill="#d97706" stroke="#fff" strokeWidth={2} />
   ) : (
     <circle cx={cx} cy={cy} r={4} fill="#92400e" stroke="none" />
   );
@@ -62,9 +64,13 @@ function ChartTooltip({
       <div>UCL: {row.ucl.toFixed(2)}%</div>
       <div>Centre line (p̄): {row.cl.toFixed(2)}%</div>
       <div>LCL: {row.lcl.toFixed(2)}%</div>
-      {row.rules.length > 0 && (
-        <div className="font-semibold text-red-600">
-          Signal: rule{row.rules.length > 1 ? 's' : ''} {row.rules.join(', ')}
+      {row.rules.some(isInvestigated) && (
+        <div className="font-semibold text-red-600">Outside the control limits — investigate</div>
+      )}
+      {row.rules.some((r) => !isInvestigated(r)) && (
+        <div className="font-semibold text-amber-700">
+          Pattern warning: rule{row.rules.filter((r) => !isInvestigated(r)).length > 1 ? 's' : ''}{' '}
+          {row.rules.filter((r) => !isInvestigated(r)).join(', ')} — watch
         </div>
       )}
     </div>
