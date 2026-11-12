@@ -8,7 +8,7 @@ import {
   restoreColourBatches,
 } from '@/lib/api';
 import { exportPChartCsv, exportPChartXlsx, formatBatchDate, INVESTIGATE_MESSAGE } from '@/lib/pChartFormat';
-import { detectSignals, isInvestigated, P_CHART_RULES, RuleId, RuleSignal, rulesByPoint } from '@/lib/nelsonRules';
+import { detectSignals, isInvestigated, P_CHART_RULES, RuleId, RuleSignal, rulesByPoint, rulesLabel } from '@/lib/nelsonRules';
 import { useEnabledRules } from '@/lib/useEnabledRules';
 import { ClearedColourBatch, PChartData } from '@/types/pChart';
 import { RuleSignalList } from '../RuleSignalList';
@@ -304,14 +304,13 @@ export function ColourPChartModule() {
               <RuleToggles
                 enabled={enabledRules}
                 onChange={setRule}
-                note="The p-chart is checked with tests 1–4 only; tests 5–8 apply to the X-bar chart."
+                note="The p-chart is checked with Nelson rules 1–4 only; Nelson rules 5–8 apply to the X-bar chart."
               />
               <PChart points={data.points} rules={analysis.rules} />
               <div className="rounded-lg border border-border bg-surface p-4">
-                <h3 className="text-sm font-semibold">Rule signals</h3>
+                <h3 className="text-sm font-semibold">Nelson rule signals</h3>
                 <p className="text-xs text-muted mb-3">
-                  The colour p-chart is checked with test{pChartRules.length === 1 ? '' : 's'}{' '}
-                  {pChartRules.join(', ')}. Each batch is judged against its own limits; only
+                  The colour p-chart is checked with {rulesLabel(pChartRules)}. Each batch is judged against its own limits; only
                   batches outside them are investigated.
                 </p>
                 <RuleSignalList

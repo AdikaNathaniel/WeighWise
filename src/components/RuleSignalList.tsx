@@ -1,4 +1,4 @@
-import { ALL_RULES, isInvestigated, RULE_DESCRIPTIONS, RuleSignal } from '@/lib/nelsonRules';
+import { ALL_RULES, isInvestigated, RULE_DESCRIPTIONS, ruleLabel, RuleSignal } from '@/lib/nelsonRules';
 
 export interface SignalPointInfo {
   /** How the point is named in the list, e.g. a production date or "Batch 4 (22 Aug 2026)". */
@@ -68,7 +68,7 @@ function RowsTable({
         <thead>
           <tr className="text-left text-xs text-muted border-b border-border">
             {showChart && <th className="py-1.5 pr-3">Chart</th>}
-            <th className="py-1.5 pr-3">Test</th>
+            <th className="py-1.5 pr-3">Nelson rule</th>
             <th className="py-1.5 pr-3">Reason</th>
             <th className="py-1.5 pr-3">{pointHeading}</th>
           </tr>
@@ -81,7 +81,7 @@ function RowsTable({
             >
               {showChart && <td className="py-1.5 pr-3 whitespace-nowrap">{row.chart}</td>}
               <td className={`py-1.5 pr-3 font-semibold whitespace-nowrap ${colours.rule}`}>
-                Rule {row.rule}
+                {ruleLabel(row.rule)}
               </td>
               <td className="py-1.5 pr-3">
                 <span className="font-medium text-foreground">
@@ -133,7 +133,7 @@ export function RuleSignalList({
     <div className="space-y-4">
       <section className="space-y-2">
         <h4 className="text-sm font-semibold text-foreground">
-          Outside the control limits — investigate
+          Outside the control limits (Nelson rule 1) — investigate
         </h4>
         {alarms.length === 0 ? (
           <p className="rounded-md border border-primary-soft bg-primary-soft px-3 py-2 text-sm text-primary-hover">
@@ -147,7 +147,7 @@ export function RuleSignalList({
       {warnings.length > 0 && (
         <section className="space-y-2">
           <h4 className="text-sm font-semibold text-foreground">
-            Pattern warnings — watch, no investigation needed
+            Pattern warnings (Nelson rules 2–8) — watch, no investigation needed
           </h4>
           <p className="text-xs text-muted">
             These points are inside the limits but form a pattern (a shift, trend or unusual

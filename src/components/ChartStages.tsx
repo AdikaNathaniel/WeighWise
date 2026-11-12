@@ -122,7 +122,7 @@ export function ChartStages({
       )}
 
       <div className="rounded-lg border border-border bg-surface p-4">
-        <h3 className="text-sm font-semibold mb-3">Rule signals — chart {index + 1}</h3>
+        <h3 className="text-sm font-semibold mb-3">Nelson rule signals — chart {index + 1}</h3>
         <RuleSignalList
           pointHeading="Subgroups flagged"
           groups={[

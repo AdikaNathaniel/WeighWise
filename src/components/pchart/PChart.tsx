@@ -12,7 +12,7 @@ import {
 } from 'recharts';
 import { PChartPoint } from '@/types/pChart';
 import { formatBatchDate } from '@/lib/pChartFormat';
-import { isInvestigated, RuleId } from '@/lib/nelsonRules';
+import { isInvestigated, RuleId, rulesLabel } from '@/lib/nelsonRules';
 import { evenTicks, fitDomain } from '@/lib/chartDomain';
 
 // Plotted values are percentages (0–100) so the axis and tooltip read as %.
@@ -65,12 +65,13 @@ function ChartTooltip({
       <div>Centre line (p̄): {row.cl.toFixed(2)}%</div>
       <div>LCL: {row.lcl.toFixed(2)}%</div>
       {row.rules.some(isInvestigated) && (
-        <div className="font-semibold text-red-600">Outside the control limits — investigate</div>
+        <div className="font-semibold text-red-600">
+          Nelson rule 1: outside the control limits — investigate
+        </div>
       )}
       {row.rules.some((r) => !isInvestigated(r)) && (
         <div className="font-semibold text-amber-700">
-          Pattern warning: rule{row.rules.filter((r) => !isInvestigated(r)).length > 1 ? 's' : ''}{' '}
-          {row.rules.filter((r) => !isInvestigated(r)).join(', ')} — watch
+          Pattern warning ({rulesLabel(row.rules.filter((r) => !isInvestigated(r)))}) — watch
         </div>
       )}
     </div>

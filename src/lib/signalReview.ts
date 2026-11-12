@@ -1,4 +1,4 @@
-import { DIRECTION_LABELS, isInvestigated, RuleId, RulePoint, RuleSignal, SignalDirection } from './nelsonRules';
+import { DIRECTION_LABELS, isInvestigated, RuleId, ruleLabel, RulePoint, RuleSignal, SignalDirection } from './nelsonRules';
 import type { ReviewOutcome } from './assignableCauses';
 import type { Subgroup } from '@/types/spc';
 
@@ -94,7 +94,7 @@ export function limitName(limitType: PointSignal['limitType']): string {
   return LIMIT_NAMES[limitType];
 }
 
-/** e.g. "R chart · Rule 1 · Above UCL" or "X-bar chart · Rule 2 · Below". */
+/** e.g. "R chart · Nelson rule 1 · Above UCL". */
 export function signalLabel(signal: {
   chart: ChartKind;
   rule: number;
@@ -103,5 +103,5 @@ export function signalLabel(signal: {
 }): string {
   const direction = DIRECTION_LABELS[signal.direction as SignalDirection] ?? signal.direction;
   const where = signal.rule === 1 ? `${direction} ${limitName(signal.limitType)}` : direction;
-  return `${CHART_NAMES[signal.chart]} · Rule ${signal.rule} · ${where}`;
+  return `${CHART_NAMES[signal.chart]} · ${ruleLabel(signal.rule)} · ${where}`;
 }

@@ -320,7 +320,7 @@ export function Dashboard() {
               <RuleToggles
                 enabled={enabledRules}
                 onChange={setRule}
-                note="As in Minitab, the R chart is checked with rules 1–4 only; rules 5–8 apply to the X-bar chart."
+                note="As in Minitab, the R chart is checked with Nelson rules 1–4 only; Nelson rules 5–8 apply to the X-bar chart."
               />
 
               <ChartStages

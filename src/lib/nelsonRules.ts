@@ -11,6 +11,16 @@ export type RuleId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 export const ALL_RULES: RuleId[] = [1, 2, 3, 4, 5, 6, 7, 8];
 
+/** The one name used for a rule across the app, e.g. "Nelson rule 3". */
+export function ruleLabel(rule: number): string {
+  return `Nelson rule ${rule}`;
+}
+
+/** "Nelson rule 2" or "Nelson rules 2, 3". */
+export function rulesLabel(rules: number[]): string {
+  return rules.length === 1 ? ruleLabel(rules[0]) : `Nelson rules ${rules.join(', ')}`;
+}
+
 /**
  * Rules applied to range (R) charts. As in Minitab, the zone tests 5–8 are
  * not run there because the R chart's σ-zones are not symmetric about its

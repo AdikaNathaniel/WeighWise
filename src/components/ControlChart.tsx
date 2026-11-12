@@ -11,7 +11,7 @@ import {
 } from 'recharts';
 import { evenTicks, fitDomain } from '@/lib/chartDomain';
 import { formatBatchDate } from '@/lib/pChartFormat';
-import { isInvestigated } from '@/lib/nelsonRules';
+import { isInvestigated, rulesLabel } from '@/lib/nelsonRules';
 import { StagePoint } from '@/lib/reviewWorkflow';
 
 // Zone boundaries (±1σ, ±2σ) are derived from the 3σ limits: σ = (UCL − CL) / 3.
@@ -91,11 +91,13 @@ function SignalNote({ rules }: { rules: StagePoint['rules'] }) {
   return (
     <>
       {rules.some(isInvestigated) && (
-        <div className="font-semibold text-red-600">Outside the control limits — investigate</div>
+        <div className="font-semibold text-red-600">
+          Nelson rule 1: outside the control limits — investigate
+        </div>
       )}
       {warnings.length > 0 && (
         <div className="font-semibold text-amber-700">
-          Pattern warning: test{warnings.length > 1 ? 's' : ''} {warnings.join(', ')} — watch
+          Pattern warning ({rulesLabel(warnings)}) — watch
         </div>
       )}
     </>

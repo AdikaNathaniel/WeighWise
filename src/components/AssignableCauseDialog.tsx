@@ -10,6 +10,7 @@ import {
 } from '@/lib/assignableCauses';
 import { formatBatchDate } from '@/lib/pChartFormat';
 import { CHART_NAMES, limitName, OUTCOME_LABELS, ReviewItem, signalLabel } from '@/lib/signalReview';
+import { ruleLabel } from '@/lib/nelsonRules';
 
 /** Today as a local calendar date (YYYY-MM-DD), not the UTC date. */
 function todayIso(): string {
@@ -247,7 +248,7 @@ function ReviewForm({
 
       <div className="max-h-[65vh] overflow-y-auto px-6 py-5 space-y-5">
         <div className="grid grid-cols-2 gap-4 rounded-lg border border-border bg-background/60 px-5 py-4 sm:grid-cols-5">
-          <Fact label="Chart signal" value={`${CHART_NAMES[signal.chart]} · Rule ${signal.rule}`} />
+          <Fact label="Chart signal" value={`${CHART_NAMES[signal.chart]} · ${ruleLabel(signal.rule)}`} />
           <Fact label="Subgroup" value={String(item.number)} />
           <Fact label="Production date" value={formatBatchDate(item.subgroup.productionDate)} />
           <Fact

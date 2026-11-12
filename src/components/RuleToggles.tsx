@@ -1,6 +1,6 @@
 'use client';
 
-import { ALL_RULES, isInvestigated, RULE_DESCRIPTIONS, RuleId } from '@/lib/nelsonRules';
+import { ALL_RULES, isInvestigated, RULE_DESCRIPTIONS, RuleId, ruleLabel } from '@/lib/nelsonRules';
 
 export function RuleToggles({
   enabled,
@@ -14,11 +14,12 @@ export function RuleToggles({
   return (
     <details className="rounded-lg border border-border bg-surface p-4">
       <summary className="cursor-pointer text-sm font-semibold text-foreground">
-        Control chart rules ({enabled.length} of {ALL_RULES.length} on)
+        Control chart rules — Nelson tests for special causes ({enabled.length} of {ALL_RULES.length} on)
       </summary>
       <p className="mt-2 text-xs text-muted">
-        Only points above the UCL or below the LCL (rule 1) are investigated and decide whether
-        the process is in control. The other rules show pattern warnings to watch.
+        These are the eight Nelson rules (Minitab&apos;s &quot;tests for special causes&quot;). Only
+        Nelson rule 1 — a point above the UCL or below the LCL — is investigated and decides
+        whether the process is in control. Nelson rules 2–8 show pattern warnings to watch.
       </p>
       <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
         {ALL_RULES.map((rule) => (
@@ -32,7 +33,7 @@ export function RuleToggles({
             />
             <span>
               <span className="font-medium text-foreground">
-                Rule {rule}: {RULE_DESCRIPTIONS[rule].title}
+                {ruleLabel(rule)}: {RULE_DESCRIPTIONS[rule].title}
               </span>{' '}
               <span
                 className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${
